@@ -45,3 +45,4 @@ prisma/*.db-journal
 .vercel
 .turbo
 *.tsbuildinfo
+src/generated/

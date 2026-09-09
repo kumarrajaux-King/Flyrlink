@@ -1,0 +1,2549 @@
+// AI-Agentic Managed Talent Marketplace — Database Schema
+// STEP 03 — Database Architecture
+//
+// Conventions (approved in STEP 02, confirmed by sign-off):
+//   T-03  All money is BigInt minor units + ISO-4217 `currency` CHAR(3). Never Float/Decimal.
+//   T-04  All primary keys are UUIDv7 (`@default(uuid(7))`) — non-enumerable, time-sortable.
+//   A-01  One unified Project spine; `Project.source` preserves the entry flow semantics.
+//
+// Append-only tables (never UPDATEd — corrections are compensating entries):
+//   LedgerEntry, AuditLog, PaymentAttempt, WebhookEvent(payload), AiRun, AiAction
+//
+// See docs/STEP-03-DATABASE-ARCHITECTURE.md for rationale, indexes and constraints.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// ENUMS — IDENTITY
+// ============================================================================
+
+enum RoleName {
+  CUSTOMER
+  EXPERT
+  ADMIN
+  SUPER_ADMIN
+  SUPPORT
+  FINANCE
+  VERIFICATION_MANAGER
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum VerificationTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  MFA_ENROLLMENT
+  EMAIL_CHANGE
+}
+
+// ============================================================================
+// ENUMS — TALENT
+// ============================================================================
+
+enum SkillProficiency {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum ExpertAvailabilityStatus {
+  AVAILABLE
+  PARTIALLY_AVAILABLE
+  BOOKED
+  UNAVAILABLE
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  IN_REVIEW
+  VERIFIED
+  REJECTED
+  EXPIRED
+  REVOKED
+}
+
+enum ServiceStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum ServiceTier {
+  BASIC
+  STANDARD
+  PREMIUM
+}
+
+// ============================================================================
+// ENUMS — MARKETPLACE
+// ============================================================================
+
+/// Preserves the original entry flow (A-01). The Project spine is unified;
+/// the semantics of how the project entered the platform are not lost.
+enum ProjectSource {
+  DIRECT_HIRE
+  POSTED_PROJECT
+  PREDEFINED_SERVICE
+}
+
+enum ProjectStatus {
+  DRAFT
+  SUBMITTED
+  AI_ANALYSIS
+  REQUIREMENT_REVIEW
+  MATCHING
+  RECOMMENDED
+  AWAITING_APPROVAL
+  ASSIGNMENT_PENDING
+  CONTRACT_PENDING
+  PAYMENT_PENDING
+  ACTIVE
+  AT_RISK
+  COMPLETED
+  REVIEW_PENDING
+  CLOSED
+  CANCELLED
+  DISPUTED
+  SUSPENDED
+}
+
+enum EngagementType {
+  FIXED_PRICE
+  HOURLY
+}
+
+enum ProjectComplexity {
+  LOW
+  MEDIUM
+  HIGH
+  VERY_HIGH
+}
+
+enum RiskLevel {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RequirementType {
+  OBJECTIVE
+  SCOPE
+  DELIVERABLE
+  CONSTRAINT
+  DEPENDENCY
+  ASSUMPTION
+  CLARIFICATION_QUESTION
+  MISSING_INFORMATION
+}
+
+/// Whether a requirement came from the customer or was proposed by an agent.
+/// AI-proposed requirements are editable by the customer (A-06) and the edit is audited.
+enum ContentSource {
+  CUSTOMER
+  EXPERT
+  AI_AGENT
+  ADMIN
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  SHORTLISTED
+  WITHDRAWN
+  REJECTED
+  ACCEPTED
+}
+
+enum RecommendationStatus {
+  PROPOSED
+  PRESENTED
+  ACCEPTED
+  DECLINED
+  SUPERSEDED
+  EXPIRED
+}
+
+enum AssignmentStatus {
+  DRAFT
+  PENDING_APPROVAL
+  INVITED
+  ACCEPTED
+  DECLINED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum TeamStatus {
+  PROPOSED
+  PENDING_APPROVAL
+  ACTIVE
+  DISBANDED
+}
+
+// ============================================================================
+// ENUMS — CONTRACTS
+// ============================================================================
+
+enum ContractStatus {
+  DRAFT
+  SENT
+  NEGOTIATION
+  ACCEPTED
+  FUNDED
+  ACTIVE
+  COMPLETED
+  CLOSED
+  DECLINED
+  CANCELLED
+  DISPUTED
+  TERMINATED
+}
+
+enum MilestoneStatus {
+  DRAFT
+  PENDING_FUNDING
+  FUNDED
+  IN_PROGRESS
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REVISION_REQUESTED
+  DISPUTED
+  RESOLVED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  IN_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum DeliverableStatus {
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REVISION_REQUESTED
+  REJECTED
+}
+
+enum TimeEntryStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  INVOICED
+}
+
+// ============================================================================
+// ENUMS — COLLABORATION
+// ============================================================================
+
+enum ConversationType {
+  DIRECT
+  PROJECT
+  TEAM
+  SUPPORT
+}
+
+enum MessageType {
+  USER
+  SYSTEM
+  AI_AGENT
+}
+
+enum NotificationType {
+  PROJECT_CREATED
+  PROJECT_ANALYZED
+  EXPERT_RECOMMENDED
+  EXPERT_INVITED
+  EXPERT_ACCEPTED
+  CONTRACT_CREATED
+  PAYMENT_SUCCESSFUL
+  MILESTONE_FUNDED
+  MILESTONE_DUE
+  MILESTONE_SUBMITTED
+  REVISION_REQUESTED
+  MILESTONE_APPROVED
+  PAYMENT_RELEASED
+  PROJECT_AT_RISK
+  PROJECT_COMPLETED
+  REVIEW_REQUESTED
+  PAYOUT_PROCESSED
+  DISPUTE_OPENED
+  DISPUTE_RESOLVED
+  VERIFICATION_DECIDED
+  AI_APPROVAL_REQUIRED
+  MESSAGE_RECEIVED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+// ============================================================================
+// ENUMS — FINANCE
+// ============================================================================
+
+enum PaymentProviderName {
+  RAZORPAY
+  STRIPE
+  CASHFREE
+  MANUAL
+}
+
+enum OrderType {
+  MILESTONE_FUNDING
+  SERVICE_PURCHASE
+  HOURLY_INVOICE
+  CONTRACT_FUNDING
+}
+
+enum OrderStatus {
+  CREATED
+  AWAITING_PAYMENT
+  PAID
+  PARTIALLY_PAID
+  CANCELLED
+  REFUNDED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  CREATED
+  PAYMENT_INITIATED
+  PENDING
+  SUCCEEDED
+  FUNDS_ALLOCATED
+  RELEASE_PENDING
+  RELEASED
+  FAILED
+  CANCELLED
+  REFUND_REQUESTED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  CHARGEBACK
+}
+
+enum PaymentAttemptStatus {
+  INITIATED
+  PENDING
+  SUCCEEDED
+  FAILED
+  ABANDONED
+}
+
+enum TransactionType {
+  PAYMENT_CAPTURE
+  ESCROW_ALLOCATION
+  MILESTONE_RELEASE
+  COMMISSION_CHARGE
+  REFUND
+  PAYOUT
+  CHARGEBACK
+  ADJUSTMENT
+  REVERSAL
+}
+
+enum TransactionStatus {
+  PENDING
+  POSTED
+  REVERSED
+  FAILED
+}
+
+/// Ledger accounts. Escrow is money held on behalf of the customer until a
+/// milestone is approved; expert payable is what the platform owes an expert.
+enum LedgerAccount {
+  CUSTOMER_ESCROW
+  PLATFORM_COMMISSION
+  EXPERT_PAYABLE
+  GATEWAY_FEE
+  TAX_PAYABLE
+  REFUND_LIABILITY
+  PLATFORM_CASH
+}
+
+enum LedgerEntryType {
+  DEBIT
+  CREDIT
+}
+
+enum CommissionCalculationType {
+  PERCENTAGE
+  FIXED
+  TIERED
+}
+
+enum CommissionScope {
+  GLOBAL
+  CATEGORY
+  PROJECT_VALUE
+  ENTERPRISE_PLAN
+  SUBSCRIPTION
+  VOLUME
+}
+
+enum CommissionStatus {
+  CALCULATED
+  APPLIED
+  REVERSED
+}
+
+enum RefundStatus {
+  REQUESTED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum PayoutStatus {
+  PENDING
+  PENDING_APPROVAL
+  APPROVED
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+  ON_HOLD
+}
+
+enum PayoutMethod {
+  BANK_TRANSFER
+  UPI
+  PAYPAL
+  PROVIDER_PAYOUT
+  MANUAL
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+  SIGNATURE_INVALID
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  AWAITING_EVIDENCE
+  RESOLVED_CUSTOMER
+  RESOLVED_EXPERT
+  RESOLVED_SPLIT
+  WITHDRAWN
+  ESCALATED
+}
+
+// ============================================================================
+// ENUMS — REPUTATION
+// ============================================================================
+
+enum ReviewDirection {
+  CUSTOMER_TO_EXPERT
+  EXPERT_TO_CUSTOMER
+}
+
+enum ReviewStatus {
+  PENDING
+  PUBLISHED
+  FLAGGED
+  UNDER_MODERATION
+  REJECTED
+  HIDDEN
+}
+
+enum RatingDimension {
+  QUALITY
+  COMMUNICATION
+  TIMELINESS
+  EXPERTISE
+  PROFESSIONALISM
+  VALUE
+}
+
+// ============================================================================
+// ENUMS — AI
+// ============================================================================
+
+enum AiAgentKey {
+  PROJECT_ARCHITECT
+  ESTIMATION
+  TALENT_DISCOVERY
+  MATCHING
+  TEAM_BUILDER
+  VERIFICATION
+  CONTRACT
+  EXECUTION
+  RISK
+  COMMUNICATION
+  PAYMENT
+  SUPPORT_RESOLUTION
+}
+
+/// Policy-engine risk classification (STEP 02 §11.3).
+/// HIGH and CRITICAL always require human approval before execution.
+enum AiRiskTier {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AiRunTrigger {
+  USER_REQUEST
+  SYSTEM_EVENT
+  SCHEDULED
+  ADMIN_REQUEST
+  RETRY
+}
+
+enum AiRunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  VALIDATION_FAILED
+  FAILED
+  TIMED_OUT
+  CANCELLED
+}
+
+enum AiOutputValidationStatus {
+  NOT_APPLICABLE
+  PASSED
+  FAILED
+}
+
+enum AiActionStatus {
+  PROPOSED
+  AUTO_APPROVED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  EXECUTED
+  FAILED
+  EXPIRED
+}
+
+// ============================================================================
+// ENUMS — GOVERNANCE
+// ============================================================================
+
+enum ActorType {
+  USER
+  SYSTEM
+  AI_AGENT
+}
+
+enum AuditSeverity {
+  INFO
+  NOTICE
+  WARNING
+  CRITICAL
+}
+
+// ============================================================================
+// IDENTITY
+// ============================================================================
+
+model User {
+  id            String     @id @default(uuid(7)) @db.Uuid
+  email         String     @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  fullName      String
+  avatarUrl     String?
+  phone         String?    @unique
+  status        UserStatus @default(PENDING_VERIFICATION)
+  timezone      String     @default("UTC")
+  locale        String     @default("en")
+
+  mfaEnabled       Boolean   @default(false)
+  mfaSecret        String?
+  lastLoginAt      DateTime?
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  roles    UserRole[]
+  sessions Session[]
+  accounts Account[]
+  tokens   VerificationToken[]
+
+  customerProfile CustomerProfile?
+  expertProfile   ExpertProfile?
+
+  rolesAssigned UserRole[] @relation("RoleAssignedBy")
+
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
+  conversationMemberships ConversationMember[]
+  messagesSent            Message[]                @relation("MessageSender")
+  attachmentsUploaded     Attachment[]
+  documentsUploaded       ProjectDocument[]
+
+  reviewsWritten   Review[] @relation("ReviewAuthor")
+  reviewsReceived  Review[] @relation("ReviewSubject")
+  reviewsModerated Review[] @relation("ReviewModerator")
+
+  requirementsEdited     ProjectRequirement[]
+  contractVersions       ContractVersion[]
+  deliverablesReviewed   Deliverable[]        @relation("DeliverableReviewer")
+  timeEntriesApproved    TimeEntry[]          @relation("TimeEntryApprover")
+  assignmentsCreated     Assignment[]         @relation("AssignmentCreatedBy")
+  assignmentsApproved    Assignment[]         @relation("AssignmentApprovedBy")
+  recommendationsDecided Recommendation[]     @relation("RecommendationDecidedBy")
+  verificationsReviewed  ExpertVerification[] @relation("VerificationReviewer")
+  expertsVerified        ExpertProfile[]      @relation("ExpertVerifiedBy")
+
+  commissionRulesCreated CommissionRule[]
+  refundsRequested       Refund[]         @relation("RefundRequestedBy")
+  refundsApproved        Refund[]         @relation("RefundApprovedBy")
+  payoutsApproved        Payout[]         @relation("PayoutApprovedBy")
+
+  disputesRaised   Dispute[] @relation("DisputeRaisedBy")
+  disputesResolved Dispute[] @relation("DisputeResolvedBy")
+
+  aiRunsTriggered  AiRun[]
+  aiActionsDecided AiAction[] @relation("AiActionDecidedBy")
+  auditLogs        AuditLog[]
+
+  @@index([status])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model Role {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  name         RoleName @unique
+  description  String?
+  isPrivileged Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users UserRole[]
+
+  @@map("roles")
+}
+
+/// A user may hold several roles (A-02). Authorization is always evaluated
+/// per resource in addition to role membership.
+model UserRole {
+  id     String @id @default(uuid(7)) @db.Uuid
+  userId String @db.Uuid
+  roleId String @db.Uuid
+
+  assignedById String?   @db.Uuid
+  assignedAt   DateTime  @default(now())
+  revokedAt    DateTime?
+
+  user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role  @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  assignedBy User? @relation("RoleAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, roleId])
+  @@index([roleId])
+  @@index([userId, revokedAt])
+  @@map("user_roles")
+}
+
+model Session {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  sessionToken String    @unique
+  userId       String    @db.Uuid
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  mfaSatisfied Boolean   @default(false)
+  revokedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// External identity provider links (OAuth/SSO). No provider secrets are stored here.
+model Account {
+  id                String @id @default(uuid(7)) @db.Uuid
+  userId            String @db.Uuid
+  provider          String
+  providerAccountId String
+  type              String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model VerificationToken {
+  id         String                @id @default(uuid(7)) @db.Uuid
+  userId     String?               @db.Uuid
+  identifier String
+  tokenHash  String                @unique
+  type       VerificationTokenType
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([identifier, type])
+  @@index([expiresAt])
+  @@map("verification_tokens")
+}
+
+// ============================================================================
+// TAXONOMY
+// ============================================================================
+
+/// One nested taxonomy serves skill categories, project categories and service
+/// categories. Deliberately not three parallel models — see STEP 03 §4.
+model Category {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  name        String
+  slug        String  @unique
+  description String?
+  parentId    String? @db.Uuid
+  isActive    Boolean @default(true)
+  orderIndex  Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Category[] @relation("CategoryTree")
+
+  skills          Skill[]
+  projects        Project[]
+  services        Service[]
+  commissionRules CommissionRule[]
+
+  @@index([parentId])
+  @@index([isActive])
+  @@map("categories")
+}
+
+model Skill {
+  id         String  @id @default(uuid(7)) @db.Uuid
+  name       String
+  slug       String  @unique
+  categoryId String  @db.Uuid
+  isActive   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category       Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  expertSkills   ExpertSkill[]
+  projectSkills  ProjectSkill[]
+  portfolioItems PortfolioItem[] @relation("PortfolioItemSkills")
+
+  @@index([categoryId])
+  @@index([isActive])
+  @@map("skills")
+}
+
+// ============================================================================
+// CUSTOMERS
+// ============================================================================
+
+model CustomerProfile {
+  id     String @id @default(uuid(7)) @db.Uuid
+  userId String @unique @db.Uuid
+
+  companyName         String?
+  industry            String?
+  website             String?
+  companySize         String?
+  billingName         String?
+  billingEmail        String?
+  billingAddressLine1 String?
+  billingAddressLine2 String?
+  billingCity         String?
+  billingState        String?
+  billingPostalCode   String?
+  billingCountry      String? @db.Char(2)
+  taxIdentifier       String?
+
+  defaultCurrency String @default("INR") @db.Char(3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projects  Project[]
+  contracts Contract[]
+  orders    Order[]
+  payments  Payment[]
+
+  @@map("customer_profiles")
+}
+
+// ============================================================================
+// EXPERTS
+// ============================================================================
+
+model ExpertProfile {
+  id     String @id @default(uuid(7)) @db.Uuid
+  userId String @unique @db.Uuid
+
+  /// Public URL identifier (A-05) — never expose the UUID in a public route.
+  slug              String  @unique
+  headline          String?
+  bio               String?
+  yearsOfExperience Int     @default(0)
+
+  hourlyRateMinor BigInt?
+  currency        String  @default("INR") @db.Char(3)
+
+  availabilityStatus  ExpertAvailabilityStatus @default(UNAVAILABLE)
+  weeklyCapacityHours Int?
+  timezone            String                   @default("UTC")
+  isAcceptingWork     Boolean                  @default(false)
+
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  verifiedAt         DateTime?
+  verifiedById       String?            @db.Uuid
+
+  profileCompleteness Int     @default(0)
+  resumeFileKey       String?
+  resumeFileName      String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verifiedBy User? @relation("ExpertVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  skills                 ExpertSkill[]
+  certifications         Certification[]
+  portfolioItems         PortfolioItem[]
+  services               Service[]
+  availability           Availability[]
+  availabilityExceptions AvailabilityException[]
+  verifications          ExpertVerification[]
+  performance            ExpertPerformance?
+
+  invitedToProjects Project[]        @relation("ProjectInvitedExpert")
+  applications      Application[]
+  recommendations   Recommendation[]
+  assignments       Assignment[]
+  teamMemberships   TeamMember[]
+  contracts         Contract[]
+  tasks             Task[]
+  deliverables      Deliverable[]
+  timeEntries       TimeEntry[]
+  payouts           Payout[]
+
+  @@index([verificationStatus])
+  @@index([availabilityStatus, isAcceptingWork])
+  @@index([deletedAt])
+  @@map("expert_profiles")
+}
+
+/// Relational skill assignment. Skills are NEVER stored as delimited strings.
+model ExpertSkill {
+  id       String @id @default(uuid(7)) @db.Uuid
+  expertId String @db.Uuid
+  skillId  String @db.Uuid
+
+  proficiency       SkillProficiency @default(INTERMEDIATE)
+  yearsOfExperience Int              @default(0)
+  isPrimary         Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expert ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  skill  Skill         @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@unique([expertId, skillId])
+  @@index([skillId, proficiency])
+  @@map("expert_skills")
+}
+
+model Certification {
+  id       String @id @default(uuid(7)) @db.Uuid
+  expertId String @db.Uuid
+
+  name                String
+  issuingOrganization String
+  issueDate           DateTime?
+  expiryDate          DateTime?
+  credentialId        String?
+  credentialUrl       String?
+  fileKey             String?
+
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expert ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  @@index([expertId])
+  @@index([verificationStatus])
+  @@map("certifications")
+}
+
+model PortfolioItem {
+  id       String @id @default(uuid(7)) @db.Uuid
+  expertId String @db.Uuid
+
+  title       String
+  description String?
+  projectUrl  String?
+  imageKeys   String[]
+  clientName  String?
+  completedAt DateTime?
+  orderIndex  Int       @default(0)
+  isPublic    Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expert ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  skills Skill[]       @relation("PortfolioItemSkills")
+
+  @@index([expertId])
+  @@map("portfolio_items")
+}
+
+/// Expert-authored predefined service (the PREDEFINED_SERVICE entry flow).
+model Service {
+  id         String @id @default(uuid(7)) @db.Uuid
+  expertId   String @db.Uuid
+  categoryId String @db.Uuid
+
+  title       String
+  slug        String        @unique
+  description String
+  status      ServiceStatus @default(DRAFT)
+
+  basePriceMinor    BigInt
+  currency          String @db.Char(3)
+  deliveryDays      Int
+  revisionsIncluded Int    @default(1)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  expert   ExpertProfile    @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  category Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  packages ServicePackage[]
+  projects Project[]
+
+  @@index([expertId])
+  @@index([categoryId, status])
+  @@index([status])
+  @@map("services")
+}
+
+model ServicePackage {
+  id        String @id @default(uuid(7)) @db.Uuid
+  serviceId String @db.Uuid
+
+  tier         ServiceTier
+  name         String
+  description  String?
+  priceMinor   BigInt
+  currency     String      @db.Char(3)
+  deliveryDays Int
+  revisions    Int         @default(1)
+  features     String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, tier])
+  @@map("service_packages")
+}
+
+/// Recurring weekly availability. Times are stored as minutes from midnight in
+/// the expert's `timezone` to stay unambiguous across DST.
+model Availability {
+  id       String @id @default(uuid(7)) @db.Uuid
+  expertId String @db.Uuid
+
+  dayOfWeek   Int
+  startMinute Int
+  endMinute   Int
+  timezone    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expert ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  @@unique([expertId, dayOfWeek, startMinute])
+  @@index([expertId])
+  @@map("availability")
+}
+
+model AvailabilityException {
+  id       String @id @default(uuid(7)) @db.Uuid
+  expertId String @db.Uuid
+
+  date        DateTime @db.Date
+  isAvailable Boolean  @default(false)
+  startMinute Int?
+  endMinute   Int?
+  reason      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expert ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  @@unique([expertId, date])
+  @@index([date])
+  @@map("availability_exceptions")
+}
+
+/// Verification workflow. The Verification Agent may write `aiFindings`, but
+/// `status` may only reach VERIFIED through a human reviewer (blueprint rule 6).
+model ExpertVerification {
+  id       String @id @default(uuid(7)) @db.Uuid
+  expertId String @db.Uuid
+
+  status        VerificationStatus @default(PENDING)
+  submittedAt   DateTime           @default(now())
+  reviewedById  String?            @db.Uuid
+  reviewedAt    DateTime?
+  decisionNotes String?
+
+  aiRunId      String?  @db.Uuid
+  aiFindings   Json?
+  aiFlagCount  Int      @default(0)
+  documentKeys String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expert     ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+  reviewedBy User?         @relation("VerificationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  aiRun      AiRun?        @relation(fields: [aiRunId], references: [id], onDelete: SetNull)
+
+  @@index([expertId])
+  @@index([status, submittedAt])
+  @@map("expert_verifications")
+}
+
+// ============================================================================
+// MARKETPLACE — PROJECTS
+// ============================================================================
+
+model Project {
+  id         String @id @default(uuid(7)) @db.Uuid
+  customerId String @db.Uuid
+
+  projectNumber String @unique
+
+  /// A-01: unified spine, entry semantics preserved.
+  source ProjectSource
+  status ProjectStatus @default(DRAFT)
+
+  title       String
+  description String
+  categoryId  String? @db.Uuid
+
+  engagementType EngagementType     @default(FIXED_PRICE)
+  complexity     ProjectComplexity?
+  riskLevel      RiskLevel          @default(NONE)
+
+  budgetMinMinor BigInt?
+  budgetMaxMinor BigInt?
+  currency       String  @default("INR") @db.Char(3)
+
+  /// AI estimates are advisory recommendations, never quotes (blueprint §5).
+  estimatedEffortHours    Int?
+  estimatedDurationDays   Int?
+  estimatedBudgetMinMinor BigInt?
+  estimatedBudgetMaxMinor BigInt?
+  estimatedTeamSize       Int?
+
+  /// Set when source = PREDEFINED_SERVICE
+  serviceId       String? @db.Uuid
+  /// Set when source = DIRECT_HIRE
+  invitedExpertId String? @db.Uuid
+
+  deadline    DateTime?
+  submittedAt DateTime?
+  activatedAt DateTime?
+  completedAt DateTime?
+  closedAt    DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  customer      CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  category      Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  service       Service?        @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  invitedExpert ExpertProfile?  @relation("ProjectInvitedExpert", fields: [invitedExpertId], references: [id], onDelete: SetNull)
+
+  requirements    ProjectRequirement[]
+  skills          ProjectSkill[]
+  documents       ProjectDocument[]
+  applications    Application[]
+  recommendations Recommendation[]
+  assignments     Assignment[]
+  teams           Team[]
+  contracts       Contract[]
+  milestones      Milestone[]
+  tasks           Task[]
+  conversations   Conversation[]
+  orders          Order[]
+  transactions    Transaction[]
+  reviews         Review[]
+  disputes        Dispute[]
+  aiRuns          AiRun[]
+
+  @@index([customerId, status])
+  @@index([status, createdAt])
+  @@index([source])
+  @@index([categoryId])
+  @@index([riskLevel])
+  @@index([deletedAt])
+  @@map("projects")
+}
+
+model ProjectRequirement {
+  id        String @id @default(uuid(7)) @db.Uuid
+  projectId String @db.Uuid
+
+  type       RequirementType
+  content    String
+  priority   Int             @default(0)
+  orderIndex Int             @default(0)
+
+  source     ContentSource @default(CUSTOMER)
+  aiRunId    String?       @db.Uuid
+  isApproved Boolean       @default(false)
+
+  /// A-06 — customer edits of AI output are recorded, not silently applied.
+  editedByUserId  String?   @db.Uuid
+  editedAt        DateTime?
+  originalContent String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  aiRun    AiRun?  @relation(fields: [aiRunId], references: [id], onDelete: SetNull)
+  editedBy User?   @relation(fields: [editedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, type])
+  @@index([aiRunId])
+  @@map("project_requirements")
+}
+
+model ProjectSkill {
+  id        String @id @default(uuid(7)) @db.Uuid
+  projectId String @db.Uuid
+  skillId   String @db.Uuid
+
+  isRequired     Boolean          @default(true)
+  importance     Int              @default(1)
+  minProficiency SkillProficiency @default(INTERMEDIATE)
+  source         ContentSource    @default(CUSTOMER)
+
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, skillId])
+  @@index([skillId])
+  @@map("project_skills")
+}
+
+model ProjectDocument {
+  id           String @id @default(uuid(7)) @db.Uuid
+  projectId    String @db.Uuid
+  uploadedById String @db.Uuid
+
+  fileName  String
+  fileKey   String  @unique
+  mimeType  String
+  sizeBytes Int
+  checksum  String?
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy User    @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([projectId])
+  @@map("project_documents")
+}
+
+model Application {
+  id        String @id @default(uuid(7)) @db.Uuid
+  projectId String @db.Uuid
+  expertId  String @db.Uuid
+
+  status      ApplicationStatus @default(SUBMITTED)
+  coverLetter String
+
+  proposedRateMinor    BigInt?
+  currency             String? @db.Char(3)
+  proposedDurationDays Int?
+
+  submittedAt DateTime  @default(now())
+  withdrawnAt DateTime?
+  respondedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  expert  ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, expertId])
+  @@index([expertId, status])
+  @@index([projectId, status])
+  @@map("applications")
+}
+
+/// The AI recommendation record. Scores are persisted per dimension with the
+/// evidence used, so every recommendation is explainable and auditable
+/// (master spec §34). The score is NOT the only source of truth — `evidence`
+/// carries the signals, and `aiRunId` links to the full run record.
+model Recommendation {
+  id        String  @id @default(uuid(7)) @db.Uuid
+  projectId String  @db.Uuid
+  expertId  String? @db.Uuid
+  teamId    String? @db.Uuid
+  aiRunId   String  @db.Uuid
+
+  status RecommendationStatus @default(PROPOSED)
+  rank   Int
+
+  /// Scores are basis points (0..10000) to keep them integral and exact.
+  overallScore            Int
+  skillScore              Int?
+  experienceScore         Int?
+  similarProjectScore     Int?
+  availabilityScore       Int?
+  budgetFitScore          Int?
+  ratingScore             Int?
+  pastPerformanceScore    Int?
+  onTimePerformanceScore  Int?
+  clientSatisfactionScore Int?
+  responseTimeScore       Int?
+  certificationScore      Int?
+
+  rationale String?
+  evidence  Json?
+
+  presentedAt      DateTime?
+  decidedByUserId  String?   @db.Uuid
+  decidedAt        DateTime?
+  overriddenReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  expert    ExpertProfile? @relation(fields: [expertId], references: [id], onDelete: SetNull)
+  team      Team?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  aiRun     AiRun          @relation(fields: [aiRunId], references: [id], onDelete: Restrict)
+  decidedBy User?          @relation("RecommendationDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+
+  assignments Assignment[]
+
+  @@unique([projectId, expertId, aiRunId])
+  @@index([projectId, rank])
+  @@index([expertId])
+  @@index([status])
+  @@index([aiRunId])
+  @@map("recommendations")
+}
+
+model Assignment {
+  id               String  @id @default(uuid(7)) @db.Uuid
+  projectId        String  @db.Uuid
+  expertId         String? @db.Uuid
+  teamId           String? @db.Uuid
+  recommendationId String? @db.Uuid
+
+  status AssignmentStatus @default(DRAFT)
+  role   String?
+
+  /// True when an agent proposed this assignment; approval is still human.
+  isAiInitiated    Boolean   @default(false)
+  createdByUserId  String?   @db.Uuid
+  approvedByUserId String?   @db.Uuid
+  approvedAt       DateTime?
+
+  invitedAt     DateTime?
+  respondedAt   DateTime?
+  declineReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  expert         ExpertProfile?  @relation(fields: [expertId], references: [id], onDelete: SetNull)
+  team           Team?           @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  recommendation Recommendation? @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+  createdBy      User?           @relation("AssignmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  approvedBy     User?           @relation("AssignmentApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status])
+  @@index([expertId, status])
+  @@index([teamId])
+  @@map("assignments")
+}
+
+model Team {
+  id        String @id @default(uuid(7)) @db.Uuid
+  projectId String @db.Uuid
+
+  name    String
+  status  TeamStatus @default(PROPOSED)
+  aiRunId String?    @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  aiRun   AiRun?  @relation(fields: [aiRunId], references: [id], onDelete: SetNull)
+
+  members         TeamMember[]
+  recommendations Recommendation[]
+  assignments     Assignment[]
+  contracts       Contract[]
+  conversations   Conversation[]
+
+  @@index([projectId, status])
+  @@map("teams")
+}
+
+model TeamMember {
+  id       String @id @default(uuid(7)) @db.Uuid
+  teamId   String @db.Uuid
+  expertId String @db.Uuid
+
+  role              String
+  allocationPercent Int     @default(100)
+  ratePerHourMinor  BigInt?
+  currency          String? @db.Char(3)
+  isLead            Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team   Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  expert ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, expertId, role])
+  @@index([expertId])
+  @@map("team_members")
+}
+
+// ============================================================================
+// CONTRACTS
+// ============================================================================
+
+model Contract {
+  id         String  @id @default(uuid(7)) @db.Uuid
+  projectId  String  @db.Uuid
+  customerId String  @db.Uuid
+  expertId   String? @db.Uuid
+  teamId     String? @db.Uuid
+
+  contractNumber String         @unique
+  type           EngagementType
+  status         ContractStatus @default(DRAFT)
+
+  totalValueMinor BigInt
+  currency        String  @db.Char(3)
+  hourlyRateMinor BigInt?
+  weeklyHourLimit Int?
+
+  commissionRuleId String? @db.Uuid
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  sentAt            DateTime?
+  acceptedAt        DateTime?
+  customerSignedAt  DateTime?
+  expertSignedAt    DateTime?
+  completedAt       DateTime?
+  closedAt          DateTime?
+  terminatedAt      DateTime?
+  terminationReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  customer       CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  expert         ExpertProfile?  @relation(fields: [expertId], references: [id], onDelete: Restrict)
+  team           Team?           @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  commissionRule CommissionRule? @relation(fields: [commissionRuleId], references: [id], onDelete: SetNull)
+
+  versions      ContractVersion[]
+  milestones    Milestone[]
+  tasks         Task[]
+  timeEntries   TimeEntry[]
+  conversations Conversation[]
+  orders        Order[]
+  transactions  Transaction[]
+  commissions   Commission[]
+  payoutItems   PayoutItem[]
+  reviews       Review[]
+  disputes      Dispute[]
+
+  @@index([projectId])
+  @@index([customerId, status])
+  @@index([expertId, status])
+  @@index([status])
+  @@map("contracts")
+}
+
+/// Signed terms are immutable. A change creates a new version requiring
+/// re-acceptance; the prior version is marked `supersededAt` and never edited.
+/// The current version is the one with the highest `versionNumber` and
+/// `supersededAt IS NULL`.
+model ContractVersion {
+  id         String @id @default(uuid(7)) @db.Uuid
+  contractId String @db.Uuid
+
+  versionNumber      Int
+  scope              String
+  terms              Json
+  acceptanceCriteria String?
+
+  totalValueMinor BigInt
+  currency        String @db.Char(3)
+
+  createdByUserId String? @db.Uuid
+  aiRunId         String? @db.Uuid
+
+  isSigned     Boolean   @default(false)
+  signedAt     DateTime?
+  supersededAt DateTime?
+  changeReason String?
+
+  createdAt DateTime @default(now())
+
+  contract  Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  aiRun     AiRun?   @relation(fields: [aiRunId], references: [id], onDelete: SetNull)
+
+  @@unique([contractId, versionNumber])
+  @@index([contractId, supersededAt])
+  @@map("contract_versions")
+}
+
+model Milestone {
+  id         String @id @default(uuid(7)) @db.Uuid
+  contractId String @db.Uuid
+  projectId  String @db.Uuid
+
+  title              String
+  description        String?
+  acceptanceCriteria String?
+
+  amountMinor BigInt
+  currency    String @db.Char(3)
+
+  status     MilestoneStatus @default(DRAFT)
+  orderIndex Int             @default(0)
+
+  dueDate     DateTime?
+  fundedAt    DateTime?
+  startedAt   DateTime?
+  submittedAt DateTime?
+  approvedAt  DateTime?
+
+  revisionCount Int     @default(0)
+  aiRunId       String? @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  aiRun    AiRun?   @relation(fields: [aiRunId], references: [id], onDelete: SetNull)
+
+  tasks        Task[]
+  deliverables Deliverable[]
+  timeEntries  TimeEntry[]
+  orders       Order[]
+  transactions Transaction[]
+  commissions  Commission[]
+  refunds      Refund[]
+  payoutItems  PayoutItem[]
+  disputes     Dispute[]
+
+  @@unique([contractId, orderIndex])
+  @@index([projectId, status])
+  @@index([status, dueDate])
+  @@map("milestones")
+}
+
+model Task {
+  id               String  @id @default(uuid(7)) @db.Uuid
+  contractId       String  @db.Uuid
+  projectId        String  @db.Uuid
+  milestoneId      String? @db.Uuid
+  assignedExpertId String? @db.Uuid
+  parentTaskId     String? @db.Uuid
+
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+
+  estimatedHours Int?
+  orderIndex     Int       @default(0)
+  dueDate        DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  blockedReason  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contract       Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone      Milestone?     @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  assignedExpert ExpertProfile? @relation(fields: [assignedExpertId], references: [id], onDelete: SetNull)
+  parentTask     Task?          @relation("TaskTree", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  subtasks       Task[]         @relation("TaskTree")
+
+  timeEntries TimeEntry[]
+
+  @@index([contractId, status])
+  @@index([milestoneId])
+  @@index([assignedExpertId, status])
+  @@index([parentTaskId])
+  @@map("tasks")
+}
+
+model Deliverable {
+  id                  String @id @default(uuid(7)) @db.Uuid
+  milestoneId         String @db.Uuid
+  submittedByExpertId String @db.Uuid
+
+  title       String
+  description String?
+  version     Int     @default(1)
+
+  fileKey     String?
+  fileName    String?
+  mimeType    String?
+  sizeBytes   Int?
+  externalUrl String?
+
+  status           DeliverableStatus @default(SUBMITTED)
+  reviewedByUserId String?           @db.Uuid
+  reviewedAt       DateTime?
+  reviewNotes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  milestone         Milestone     @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  submittedByExpert ExpertProfile @relation(fields: [submittedByExpertId], references: [id], onDelete: Restrict)
+  reviewedBy        User?         @relation("DeliverableReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  attachments Attachment[]
+
+  @@unique([milestoneId, version])
+  @@index([milestoneId, status])
+  @@index([submittedByExpertId])
+  @@map("deliverables")
+}
+
+model TimeEntry {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  contractId  String  @db.Uuid
+  expertId    String  @db.Uuid
+  taskId      String? @db.Uuid
+  milestoneId String? @db.Uuid
+
+  startedAt       DateTime
+  endedAt         DateTime?
+  durationMinutes Int
+  description     String?
+
+  isBillable       Boolean @default(true)
+  ratePerHourMinor BigInt
+  currency         String  @db.Char(3)
+
+  status           TimeEntryStatus @default(DRAFT)
+  approvedByUserId String?         @db.Uuid
+  approvedAt       DateTime?
+  rejectionReason  String?
+  invoicedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contract   Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  expert     ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Restrict)
+  task       Task?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  milestone  Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  approvedBy User?         @relation("TimeEntryApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([contractId, status])
+  @@index([expertId, startedAt])
+  @@index([taskId])
+  @@map("time_entries")
+}
+
+// ============================================================================
+// COLLABORATION
+// ============================================================================
+
+model Conversation {
+  id         String           @id @default(uuid(7)) @db.Uuid
+  type       ConversationType
+  projectId  String?          @db.Uuid
+  contractId String?          @db.Uuid
+  teamId     String?          @db.Uuid
+
+  title         String?
+  lastMessageAt DateTime?
+  isArchived    Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contract Contract? @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  team     Team?     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  members  ConversationMember[]
+  messages Message[]
+
+  @@index([projectId])
+  @@index([contractId])
+  @@index([type, lastMessageAt])
+  @@map("conversations")
+}
+
+model ConversationMember {
+  id             String @id @default(uuid(7)) @db.Uuid
+  conversationId String @db.Uuid
+  userId         String @db.Uuid
+
+  lastReadAt DateTime?
+  isMuted    Boolean   @default(false)
+  joinedAt   DateTime  @default(now())
+  leftAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_members")
+}
+
+model Message {
+  id              String  @id @default(uuid(7)) @db.Uuid
+  conversationId  String  @db.Uuid
+  senderUserId    String? @db.Uuid
+  parentMessageId String? @db.Uuid
+
+  /// AI_AGENT messages are always labelled as such — agents never impersonate
+  /// a human (blueprint rule 16).
+  type    MessageType @default(USER)
+  body    String
+  aiRunId String?     @db.Uuid
+
+  editedAt  DateTime?
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  conversation  Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender        User?        @relation("MessageSender", fields: [senderUserId], references: [id], onDelete: SetNull)
+  parentMessage Message?     @relation("MessageThread", fields: [parentMessageId], references: [id], onDelete: SetNull)
+  replies       Message[]    @relation("MessageThread")
+  aiRun         AiRun?       @relation(fields: [aiRunId], references: [id], onDelete: SetNull)
+
+  attachments Attachment[]
+
+  @@index([conversationId, createdAt])
+  @@index([senderUserId])
+  @@map("messages")
+}
+
+model Attachment {
+  id            String  @id @default(uuid(7)) @db.Uuid
+  messageId     String? @db.Uuid
+  deliverableId String? @db.Uuid
+  uploadedById  String  @db.Uuid
+
+  fileName  String
+  fileKey   String  @unique
+  mimeType  String
+  sizeBytes Int
+  checksum  String?
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  message     Message?     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  deliverable Deliverable? @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  uploadedBy  User         @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([messageId])
+  @@index([deliverableId])
+  @@map("attachments")
+}
+
+model Notification {
+  id     String @id @default(uuid(7)) @db.Uuid
+  userId String @db.Uuid
+
+  type    NotificationType
+  channel NotificationChannel @default(IN_APP)
+  title   String
+  body    String
+
+  entityType String?
+  entityId   String? @db.Uuid
+  actionUrl  String?
+
+  readAt        DateTime?
+  sentAt        DateTime?
+  failedAt      DateTime?
+  failureReason String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@index([type])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id     String @id @default(uuid(7)) @db.Uuid
+  userId String @db.Uuid
+
+  type     NotificationType
+  inApp    Boolean          @default(true)
+  email    Boolean          @default(true)
+  sms      Boolean          @default(false)
+  whatsapp Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@map("notification_preferences")
+}
+
+// ============================================================================
+// FINANCE
+// ============================================================================
+
+model Order {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  orderNumber String  @unique
+  customerId  String  @db.Uuid
+  projectId   String? @db.Uuid
+  contractId  String? @db.Uuid
+  milestoneId String? @db.Uuid
+
+  type   OrderType
+  status OrderStatus @default(CREATED)
+
+  subtotalMinor BigInt
+  taxMinor      BigInt @default(0)
+  totalMinor    BigInt
+  currency      String @db.Char(3)
+
+  expiresAt DateTime?
+  paidAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer  CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  project   Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  contract  Contract?       @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  milestone Milestone?      @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
+  payments     Payment[]
+  transactions Transaction[]
+  commissions  Commission[]
+  refunds      Refund[]
+
+  @@index([customerId, status])
+  @@index([milestoneId])
+  @@index([status, createdAt])
+  @@map("orders")
+}
+
+/// NO card numbers, CVV, or raw payment credentials are ever stored — only
+/// provider references. Payment reaches SUCCEEDED only via a signature-verified
+/// webhook (blueprint rule 3).
+model Payment {
+  id         String @id @default(uuid(7)) @db.Uuid
+  orderId    String @db.Uuid
+  customerId String @db.Uuid
+
+  provider          PaymentProviderName
+  providerPaymentId String?
+  providerOrderId   String?
+
+  amountMinor         BigInt
+  currency            String @db.Char(3)
+  refundedAmountMinor BigInt @default(0)
+
+  status PaymentStatus @default(CREATED)
+
+  /// Payment method descriptor only (e.g. "upi", "card_visa_debit").
+  /// Never a card number, never a CVV, never a token that can charge.
+  methodDescriptor String?
+
+  /// Required on every money-moving request (STEP 02 §8).
+  idempotencyKey String @unique
+
+  initiatedAt    DateTime?
+  capturedAt     DateTime?
+  failedAt       DateTime?
+  failureCode    String?
+  failureMessage String?
+
+  /// The webhook event that authorised the SUCCEEDED transition.
+  confirmedByWebhookEventId String? @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order                   Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  customer                CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  confirmedByWebhookEvent WebhookEvent?   @relation(fields: [confirmedByWebhookEventId], references: [id], onDelete: SetNull)
+
+  attempts     PaymentAttempt[]
+  transactions Transaction[]
+  commissions  Commission[]
+  refunds      Refund[]
+
+  @@unique([provider, providerPaymentId])
+  @@index([orderId])
+  @@index([customerId, status])
+  @@index([status, createdAt])
+  @@map("payments")
+}
+
+/// Append-only record of each gateway interaction, for reconciliation and
+/// failure forensics. Never updated after insert.
+model PaymentAttempt {
+  id        String @id @default(uuid(7)) @db.Uuid
+  paymentId String @db.Uuid
+
+  attemptNumber     Int
+  provider          PaymentProviderName
+  providerReference String?
+  status            PaymentAttemptStatus
+
+  errorCode        String?
+  errorMessage     String?
+  /// Provider response with sensitive fields stripped before persistence.
+  responseSnapshot Json?
+
+  attemptedAt DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, attemptNumber])
+  @@index([paymentId])
+  @@map("payment_attempts")
+}
+
+/// Business-level financial event. Corrections never mutate history — a
+/// reversal Transaction points at the original via `reversalOfId`.
+model Transaction {
+  id                String @id @default(uuid(7)) @db.Uuid
+  transactionNumber String @unique
+
+  type   TransactionType
+  status TransactionStatus @default(POSTED)
+
+  paymentId    String? @db.Uuid
+  orderId      String? @db.Uuid
+  projectId    String? @db.Uuid
+  contractId   String? @db.Uuid
+  milestoneId  String? @db.Uuid
+  refundId     String? @db.Uuid
+  payoutId     String? @db.Uuid
+  reversalOfId String? @db.Uuid
+
+  amountMinor BigInt
+  currency    String  @db.Char(3)
+  description String?
+
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  payment    Payment?      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  order      Order?        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  project    Project?      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  contract   Contract?     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  milestone  Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: Restrict)
+  refund     Refund?       @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  payout     Payout?       @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  reversalOf Transaction?  @relation("TransactionReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversals  Transaction[] @relation("TransactionReversal")
+
+  ledgerEntries LedgerEntry[]
+
+  @@index([type, occurredAt])
+  @@index([paymentId])
+  @@index([contractId])
+  @@index([milestoneId])
+  @@index([projectId])
+  @@map("transactions")
+}
+
+/// APPEND-ONLY double-entry ledger. Rows are never updated or deleted.
+/// Every Transaction must produce balanced DEBIT/CREDIT entries.
+model LedgerEntry {
+  id            String @id @default(uuid(7)) @db.Uuid
+  transactionId String @db.Uuid
+
+  account   LedgerAccount
+  entryType LedgerEntryType
+
+  amountMinor BigInt
+  currency    String @db.Char(3)
+
+  /// Optional subject of the entry (e.g. the expert a payable belongs to).
+  subjectType String?
+  subjectId   String? @db.Uuid
+
+  memo       String?
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@index([transactionId])
+  @@index([account, occurredAt])
+  @@index([subjectType, subjectId])
+  @@map("transaction_ledger")
+}
+
+/// Versioned, configurable commission rule. Never hard-coded, never in the UI.
+/// Historical payouts stay re-derivable because rule versions are retained.
+model CommissionRule {
+  id   String @id @default(uuid(7)) @db.Uuid
+  name String
+
+  scope           CommissionScope           @default(GLOBAL)
+  calculationType CommissionCalculationType @default(PERCENTAGE)
+
+  /// Basis points (e.g. 1000 = 10.00%) — integral, no float rounding.
+  percentageBasisPoints Int?
+  fixedAmountMinor      BigInt?
+  currency              String? @db.Char(3)
+
+  categoryId           String? @db.Uuid
+  minProjectValueMinor BigInt?
+  maxProjectValueMinor BigInt?
+
+  version       Int       @default(1)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+  priority      Int       @default(0)
+
+  createdByUserId String? @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category  Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy User?     @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  commissions Commission[]
+  contracts   Contract[]
+
+  @@unique([name, version])
+  @@index([scope, isActive])
+  @@index([effectiveFrom, effectiveTo])
+  @@map("commission_rules")
+}
+
+/// A computed commission. `calculationSnapshot` freezes the inputs and rule
+/// values used, so the figure can always be explained and reproduced.
+model Commission {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  commissionRuleId      String @db.Uuid
+  commissionRuleVersion Int
+
+  contractId  String? @db.Uuid
+  milestoneId String? @db.Uuid
+  orderId     String? @db.Uuid
+  paymentId   String? @db.Uuid
+
+  grossAmountMinor      BigInt
+  commissionAmountMinor BigInt
+  expertPayableMinor    BigInt
+  currency              String @db.Char(3)
+
+  calculationSnapshot Json
+  status              CommissionStatus @default(CALCULATED)
+  reversedAt          DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  commissionRule CommissionRule @relation(fields: [commissionRuleId], references: [id], onDelete: Restrict)
+  contract       Contract?      @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  milestone      Milestone?     @relation(fields: [milestoneId], references: [id], onDelete: Restrict)
+  order          Order?         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  payment        Payment?       @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  payoutItems PayoutItem[]
+
+  @@index([contractId])
+  @@index([milestoneId])
+  @@index([status])
+  @@map("commissions")
+}
+
+model Refund {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  paymentId   String  @db.Uuid
+  orderId     String? @db.Uuid
+  milestoneId String? @db.Uuid
+
+  provider         PaymentProviderName
+  providerRefundId String?
+
+  amountMinor BigInt
+  currency    String  @db.Char(3)
+  isPartial   Boolean @default(false)
+
+  reason String
+  status RefundStatus @default(REQUESTED)
+
+  /// Refunds always require human approval (blueprint rule 5).
+  requestedByUserId String?   @db.Uuid
+  approvedByUserId  String?   @db.Uuid
+  approvedAt        DateTime?
+  rejectionReason   String?
+
+  idempotencyKey String @unique
+
+  requestedAt    DateTime  @default(now())
+  processedAt    DateTime?
+  failureCode    String?
+  failureMessage String?
+
+  aiRunId String? @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payment     Payment    @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  order       Order?     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  milestone   Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  requestedBy User?      @relation("RefundRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  approvedBy  User?      @relation("RefundApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  aiRun       AiRun?     @relation(fields: [aiRunId], references: [id], onDelete: SetNull)
+
+  transactions Transaction[]
+
+  @@unique([provider, providerRefundId])
+  @@index([paymentId])
+  @@index([status, requestedAt])
+  @@map("refunds")
+}
+
+model Payout {
+  id           String @id @default(uuid(7)) @db.Uuid
+  payoutNumber String @unique
+  expertId     String @db.Uuid
+
+  provider         PaymentProviderName
+  providerPayoutId String?
+  method           PayoutMethod        @default(BANK_TRANSFER)
+
+  grossAmountMinor      BigInt
+  commissionAmountMinor BigInt
+  netAmountMinor        BigInt
+  currency              String @db.Char(3)
+
+  status PayoutStatus @default(PENDING)
+
+  /// Payout changes require human approval (blueprint rule 5).
+  approvedByUserId String?   @db.Uuid
+  approvedAt       DateTime?
+
+  idempotencyKey String @unique
+
+  scheduledFor   DateTime?
+  processedAt    DateTime?
+  failureCode    String?
+  failureMessage String?
+  holdReason     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expert     ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Restrict)
+  approvedBy User?         @relation("PayoutApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  items        PayoutItem[]
+  transactions Transaction[]
+
+  @@unique([provider, providerPayoutId])
+  @@index([expertId, status])
+  @@index([status, scheduledFor])
+  @@map("payouts")
+}
+
+/// Links a payout to the specific milestones/commissions it settles, so every
+/// paid amount is traceable to the work that earned it.
+model PayoutItem {
+  id       String @id @default(uuid(7)) @db.Uuid
+  payoutId String @db.Uuid
+
+  milestoneId  String? @db.Uuid
+  contractId   String? @db.Uuid
+  commissionId String? @db.Uuid
+
+  amountMinor BigInt
+  currency    String  @db.Char(3)
+  description String?
+
+  createdAt DateTime @default(now())
+
+  payout     Payout      @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  milestone  Milestone?  @relation(fields: [milestoneId], references: [id], onDelete: Restrict)
+  contract   Contract?   @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  commission Commission? @relation(fields: [commissionId], references: [id], onDelete: Restrict)
+
+  @@index([payoutId])
+  @@index([milestoneId])
+  @@map("payout_items")
+}
+
+/// Inbound provider events. `(provider, providerEventId)` is unique, which is
+/// what makes webhook processing idempotent — a replayed event cannot double-apply.
+/// The raw payload is persisted BEFORE processing.
+model WebhookEvent {
+  id       String              @id @default(uuid(7)) @db.Uuid
+  provider PaymentProviderName
+
+  providerEventId String
+  eventType       String
+
+  signatureVerified Boolean @default(false)
+  payload           Json
+
+  status    WebhookEventStatus @default(RECEIVED)
+  attempts  Int                @default(0)
+  lastError String?
+
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  payments Payment[]
+
+  @@unique([provider, providerEventId])
+  @@index([status, receivedAt])
+  @@index([eventType])
+  @@map("webhook_events")
+}
+
+model Dispute {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  projectId   String  @db.Uuid
+  contractId  String? @db.Uuid
+  milestoneId String? @db.Uuid
+
+  raisedByUserId String        @db.Uuid
+  status         DisputeStatus @default(OPEN)
+
+  reason              String
+  description         String
+  disputedAmountMinor BigInt?
+  currency            String? @db.Char(3)
+
+  resolvedByUserId   String?   @db.Uuid
+  resolvedAt         DateTime?
+  resolutionNotes    String?
+  customerAwardMinor BigInt?
+  expertAwardMinor   BigInt?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  contract   Contract?  @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  milestone  Milestone? @relation(fields: [milestoneId], references: [id], onDelete: Restrict)
+  raisedBy   User       @relation("DisputeRaisedBy", fields: [raisedByUserId], references: [id], onDelete: Restrict)
+  resolvedBy User?      @relation("DisputeResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status])
+  @@index([status, createdAt])
+  @@map("disputes")
+}
+
+// ============================================================================
+// REPUTATION
+// ============================================================================
+
+/// A review requires a real completed contract. `isVerifiedTransaction` is set
+/// by the server after eligibility checks; self-review is impossible because
+/// reviewer and reviewee are distinct users on opposite sides of a contract.
+model Review {
+  id         String @id @default(uuid(7)) @db.Uuid
+  projectId  String @db.Uuid
+  contractId String @db.Uuid
+
+  reviewerUserId String @db.Uuid
+  revieweeUserId String @db.Uuid
+
+  direction ReviewDirection
+  status    ReviewStatus    @default(PENDING)
+
+  overallRating Int
+  comment       String?
+
+  isVerifiedTransaction Boolean @default(false)
+
+  moderatedByUserId String?   @db.Uuid
+  moderatedAt       DateTime?
+  moderationNotes   String?
+  flagCount         Int       @default(0)
+
+  publishedAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  reviewer    User     @relation("ReviewAuthor", fields: [reviewerUserId], references: [id], onDelete: Restrict)
+  reviewee    User     @relation("ReviewSubject", fields: [revieweeUserId], references: [id], onDelete: Restrict)
+  moderatedBy User?    @relation("ReviewModerator", fields: [moderatedByUserId], references: [id], onDelete: SetNull)
+
+  ratings Rating[]
+
+  @@unique([contractId, reviewerUserId, direction])
+  @@index([revieweeUserId, status])
+  @@index([projectId])
+  @@index([status, createdAt])
+  @@map("reviews")
+}
+
+model Rating {
+  id       String @id @default(uuid(7)) @db.Uuid
+  reviewId String @db.Uuid
+
+  dimension RatingDimension
+  score     Int
+
+  createdAt DateTime @default(now())
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, dimension])
+  @@map("ratings")
+}
+
+/// Internal performance signals, distinct from public reputation.
+/// Recomputed from source records; feeds future AI matching.
+model ExpertPerformance {
+  id       String @id @default(uuid(7)) @db.Uuid
+  expertId String @unique @db.Uuid
+
+  /// Rates stored as basis points (0..10000) — integral, no float drift.
+  onTimeDeliveryRate Int  @default(0)
+  revisionRate       Int  @default(0)
+  cancellationRate   Int  @default(0)
+  disputeRate        Int  @default(0)
+  repeatClientRate   Int  @default(0)
+  clientSatisfaction Int  @default(0)
+  avgResponseMinutes Int?
+
+  completedProjects Int    @default(0)
+  totalEarnedMinor  BigInt @default(0)
+  currency          String @default("INR") @db.Char(3)
+
+  avgRating   Int @default(0)
+  reviewCount Int @default(0)
+
+  computedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  expert ExpertProfile @relation(fields: [expertId], references: [id], onDelete: Cascade)
+
+  @@index([avgRating])
+  @@index([onTimeDeliveryRate])
+  @@map("expert_performance")
+}
+
+// ============================================================================
+// AI
+// ============================================================================
+
+model AiAgent {
+  id          String     @id @default(uuid(7)) @db.Uuid
+  key         AiAgentKey @unique
+  name        String
+  description String?
+
+  defaultRiskTier AiRiskTier @default(LOW)
+  isEnabled       Boolean    @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  versions AiAgentVersion[]
+  runs     AiRun[]
+
+  @@map("ai_agents")
+}
+
+/// Pinning the model, provider and prompt reference per version is what makes
+/// "which agent, which version, which model" answerable for any past decision.
+model AiAgentVersion {
+  id      String @id @default(uuid(7)) @db.Uuid
+  agentId String @db.Uuid
+
+  version  String
+  model    String
+  provider String
+
+  promptRef       String
+  promptHash      String?
+  outputSchemaRef String?
+
+  isActive   Boolean  @default(false)
+  releasedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agent AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  runs  AiRun[]
+
+  @@unique([agentId, version])
+  @@index([agentId, isActive])
+  @@map("ai_agent_versions")
+}
+
+/// One agent invocation. Append-only after completion. Cost is stored in minor
+/// units like all money, so AI spend reconciles with financial reporting.
+model AiRun {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  agentId        String  @db.Uuid
+  agentVersionId String? @db.Uuid
+
+  model    String
+  provider String
+
+  entityType String?
+  entityId   String? @db.Uuid
+  projectId  String? @db.Uuid
+
+  trigger           AiRunTrigger @default(USER_REQUEST)
+  triggeredByUserId String?      @db.Uuid
+
+  status AiRunStatus @default(QUEUED)
+
+  inputPayload  Json
+  outputPayload Json?
+
+  /// Agent output is schema-validated before it may touch the database.
+  validationStatus AiOutputValidationStatus @default(NOT_APPLICABLE)
+  validationErrors Json?
+
+  latencyMs         Int?
+  inputTokens       Int?
+  outputTokens      Int?
+  cachedInputTokens Int?
+  costMinor         BigInt?
+  currency          String? @db.Char(3)
+
+  errorCode    String?
+  errorMessage String?
+  retryCount   Int     @default(0)
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  agent        AiAgent         @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  agentVersion AiAgentVersion? @relation(fields: [agentVersionId], references: [id], onDelete: SetNull)
+  project      Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  triggeredBy  User?           @relation(fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+
+  actions          AiAction[]
+  recommendations  Recommendation[]
+  requirements     ProjectRequirement[]
+  teams            Team[]
+  contractVersions ContractVersion[]
+  milestones       Milestone[]
+  verifications    ExpertVerification[]
+  messages         Message[]
+  refunds          Refund[]
+  auditLogs        AuditLog[]
+
+  @@index([agentId, createdAt])
+  @@index([projectId])
+  @@index([status, createdAt])
+  @@index([entityType, entityId])
+  @@map("ai_runs")
+}
+
+/// Every tool call an agent attempts, with the policy decision that gated it.
+/// HIGH/CRITICAL risk tiers cannot reach EXECUTED without an approving user —
+/// that is the human-in-the-loop guarantee (blueprint rule 5).
+model AiAction {
+  id      String @id @default(uuid(7)) @db.Uuid
+  aiRunId String @db.Uuid
+
+  toolName String
+  riskTier AiRiskTier
+
+  requestedPayload Json
+  resultPayload    Json?
+
+  status AiActionStatus @default(PROPOSED)
+
+  policyDecision        String?
+  policyReason          String?
+  requiresHumanApproval Boolean @default(false)
+
+  approvedByUserId String?   @db.Uuid
+  approvedAt       DateTime?
+  rejectedReason   String?
+  executedAt       DateTime?
+
+  entityType String?
+  entityId   String? @db.Uuid
+
+  idempotencyKey String?
+
+  errorCode    String?
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+
+  aiRun      AiRun @relation(fields: [aiRunId], references: [id], onDelete: Cascade)
+  approvedBy User? @relation("AiActionDecidedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([aiRunId, idempotencyKey])
+  @@index([aiRunId])
+  @@index([status, riskTier])
+  @@index([requiresHumanApproval, status])
+  @@map("ai_actions")
+}
+
+// ============================================================================
+// GOVERNANCE
+// ============================================================================
+
+/// APPEND-ONLY audit trail. Never updated, never user-editable.
+/// `actorType` distinguishes a human action from a system or agent action.
+model AuditLog {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  actorType    ActorType
+  actorUserId  String?   @db.Uuid
+  actorAiRunId String?   @db.Uuid
+
+  action     String
+  entityType String
+  entityId   String? @db.Uuid
+
+  beforeState Json?
+  afterState  Json?
+
+  severity  AuditSeverity @default(INFO)
+  ipAddress String?
+  userAgent String?
+  requestId String?
+
+  createdAt DateTime @default(now())
+
+  actorUser  User?  @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorAiRun AiRun? @relation(fields: [actorAiRunId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+  @@index([severity, createdAt])
+  @@index([requestId])
+  @@map("audit_logs")
+}

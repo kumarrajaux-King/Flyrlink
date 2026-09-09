@@ -4,10 +4,10 @@ Maintained continuously. Updated at the end of every phase.
 
 | Phase | Scope | Status | Deliverable |
 | --- | --- | --- | --- |
-| 1 | UX + Product Architecture | ✅ **Drafted — awaiting sign-off** | `STEP-01-UX-PRODUCT-ARCHITECTURE.md` |
-| 2 | Technical Architecture | ✅ **Drafted — awaiting sign-off** | `STEP-02-TECHNICAL-ARCHITECTURE.md` |
-| 3 | Database Architecture | ⏭️ **Next — blocked on Phase 1+2 sign-off** | `STEP-03-DATABASE-ARCHITECTURE.md`, `prisma/schema.prisma`, migration, seed |
-| 4 | Authentication + RBAC | ⬜ Not started | |
+| 1 | UX + Product Architecture | ✅ **Signed off** (2026-09-10) | `STEP-01-UX-PRODUCT-ARCHITECTURE.md` |
+| 2 | Technical Architecture | ✅ **Signed off** (2026-09-10) | `STEP-02-TECHNICAL-ARCHITECTURE.md` |
+| 3 | Database Architecture | ✅ **Implemented — awaiting sign-off** | `STEP-03-DATABASE-ARCHITECTURE.md`, `prisma/schema.prisma`, migration, seed, `domain/money/` |
+| 4 | Authentication + RBAC | ⏭️ **Next — not started** | |
 | 5 | Expert Marketplace | ⬜ Not started — **blocked by `M-01` (Figma)** | |
 | 6 | Customer Project Marketplace | ⬜ Not started — **blocked by `M-01`** | |
 | 7 | AI Agentic System | ⬜ Not started | `AI-AGENT-ARCHITECTURE.md` |
@@ -40,7 +40,32 @@ Initialized the git repository on `main`. Authored `PRODUCT-BLUEPRINT.md`, `STEP
 
 No application code, dependencies, or database artifacts were created — deliberately. Nothing is installed until the architecture is approved.
 
+### 2026-09-10 — Phases 1 & 2 signed off; Phase 3 implemented
+
+STEP 1 and STEP 2 were explicitly approved, along with `T-03` (money as integer minor units + ISO-4217),
+`T-04` (UUIDv7 identifiers) and `A-01` (unified Project model). `A-01` was refined at sign-off: the
+unified spine must **preserve the entry source** — `DIRECT_HIRE`, `POSTED_PROJECT`, `PREDEFINED_SERVICE` —
+which is implemented as the required `Project.source` enum.
+
+Phase 3 delivered 59 models / 60 tables / 57 enums / 148 foreign keys / 173 indexes, the initial
+migration, a development seed, and a centralized money utility with unit tests. Typecheck, lint and
+41 tests pass; the migration was executed against a real Postgres engine in-process.
+
+**Blocked:** no PostgreSQL server, Docker, or port 5432 listener exists on this machine, so
+`prisma migrate dev` and `prisma db seed` have **not** been run. See STEP-03 §12 for the one-command
+unblock.
+
 ## Open decisions requiring sign-off
+
+### STEP 03 — database decisions
+| ID | Decision |
+| --- | --- |
+| D-01 | `Dispute` model added beyond the required list (the approved `DISPUTED` states need it) |
+| D-02 | One `Category` tree instead of separate skill/project/service taxonomies |
+| D-03 | `Recommendation` serves as the AI recommendation model — one model, not two |
+| D-04 | PGlite added as a test-only devDependency to verify the migration |
+| D-05 | Source↔link consistency enforced in services rather than `CHECK` constraints |
+| D-06 | Prisma 7 requires `prisma.config.ts` + `@prisma/adapter-pg` + `pg` |
 
 ### STEP 01 — product assumptions
 | ID | Assumption |
