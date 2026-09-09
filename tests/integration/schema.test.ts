@@ -397,6 +397,168 @@ describe('financial guarantees enforced by the schema', () => {
   });
 });
 
+describe('CHECK constraints (D-05 hardening)', () => {
+  /** Asserts a statement is rejected by the database, not merely by the app. */
+  async function mustReject(sql: string): Promise<void> {
+    await expect(db.exec(sql)).rejects.toThrow();
+  }
+
+  it('adds CHECK constraints to the database', async () => {
+    const checks = await rows<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM pg_constraint
+       WHERE contype = 'c' AND connamespace = 'public'::regnamespace
+         AND conname NOT LIKE '%_not_null'`,
+    );
+    expect(Number(checks[0]?.count ?? 0)).toBeGreaterThanOrEqual(50);
+  });
+
+  it('enforces Project source ↔ relationship semantics (A-01)', async () => {
+    const setup = `
+      INSERT INTO "categories" ("id","name","slug","updatedAt")
+        VALUES ('11111111-1111-1111-1111-111111111111','Cat','cat-chk', now());
+      INSERT INTO "users" ("id","email","fullName","updatedAt")
+        VALUES ('22222222-2222-2222-2222-222222222222','chk@example.test','Chk User', now());
+      INSERT INTO "customer_profiles" ("id","userId","updatedAt")
+        VALUES ('33333333-3333-3333-3333-333333333333','22222222-2222-2222-2222-222222222222', now());
+      INSERT INTO "users" ("id","email","fullName","updatedAt")
+        VALUES ('44444444-4444-4444-4444-444444444444','chkexp@example.test','Chk Expert', now());
+      INSERT INTO "expert_profiles" ("id","userId","slug","updatedAt")
+        VALUES ('55555555-5555-5555-5555-555555555555','44444444-4444-4444-4444-444444444444','chk-expert', now());
+      INSERT INTO "services" ("id","expertId","categoryId","title","slug","description","basePriceMinor","currency","deliveryDays","updatedAt")
+        VALUES ('66666666-6666-6666-6666-666666666666','55555555-5555-5555-5555-555555555555','11111111-1111-1111-1111-111111111111','S','s-chk','d',100,'INR',5, now());
+    `;
+    await db.exec(setup);
+
+    // A POSTED_PROJECT must not carry a service link.
+    await mustReject(`
+      INSERT INTO "projects" ("id","projectNumber","customerId","source","title","description","currency","serviceId","updatedAt")
+      VALUES (gen_random_uuid(),'PRJ-CHK-1','33333333-3333-3333-3333-333333333333','POSTED_PROJECT','t','d','INR','66666666-6666-6666-6666-666666666666', now())
+    `);
+
+    // A POSTED_PROJECT must not carry an invited-expert link.
+    await mustReject(`
+      INSERT INTO "projects" ("id","projectNumber","customerId","source","title","description","currency","invitedExpertId","updatedAt")
+      VALUES (gen_random_uuid(),'PRJ-CHK-2','33333333-3333-3333-3333-333333333333','POSTED_PROJECT','t','d','INR','55555555-5555-5555-5555-555555555555', now())
+    `);
+
+    // But the legitimate combinations must still be accepted, and a
+    // PREDEFINED_SERVICE project with no service link yet must remain valid —
+    // the constraint must not make a real workflow state impossible.
+    await db.exec(`
+      INSERT INTO "projects" ("id","projectNumber","customerId","source","title","description","currency","serviceId","updatedAt")
+      VALUES (gen_random_uuid(),'PRJ-CHK-3','33333333-3333-3333-3333-333333333333','PREDEFINED_SERVICE','t','d','INR','66666666-6666-6666-6666-666666666666', now());
+
+      INSERT INTO "projects" ("id","projectNumber","customerId","source","title","description","currency","updatedAt")
+      VALUES (gen_random_uuid(),'PRJ-CHK-4','33333333-3333-3333-3333-333333333333','PREDEFINED_SERVICE','t','d','INR', now());
+
+      INSERT INTO "projects" ("id","projectNumber","customerId","source","title","description","currency","invitedExpertId","updatedAt")
+      VALUES (gen_random_uuid(),'PRJ-CHK-5','33333333-3333-3333-3333-333333333333','DIRECT_HIRE','t','d','INR','55555555-5555-5555-5555-555555555555', now());
+
+      INSERT INTO "projects" ("id","projectNumber","customerId","source","title","description","currency","updatedAt")
+      VALUES (gen_random_uuid(),'PRJ-CHK-6','33333333-3333-3333-3333-333333333333','POSTED_PROJECT','t','d','INR', now());
+    `);
+
+    const accepted = await rows<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM "projects" WHERE "projectNumber" LIKE 'PRJ-CHK-%'`,
+    );
+    expect(Number(accepted[0]?.count ?? 0)).toBe(4);
+  });
+
+  it('enforces financial arithmetic identities', async () => {
+    await db.exec(`
+      INSERT INTO "commission_rules" ("id","name","calculationType","percentageBasisPoints","version","effectiveFrom","updatedAt")
+      VALUES ('77777777-7777-7777-7777-777777777777','Chk Rule','PERCENTAGE',1000,1, now(), now())
+    `);
+
+    // gross must equal commission + payable
+    await mustReject(`
+      INSERT INTO "commissions" ("id","commissionRuleId","commissionRuleVersion","grossAmountMinor","commissionAmountMinor","expertPayableMinor","currency","calculationSnapshot","updatedAt")
+      VALUES (gen_random_uuid(),'77777777-7777-7777-7777-777777777777',1,1000,100,500,'INR','{}'::jsonb, now())
+    `);
+
+    // net must equal gross - commission
+    await mustReject(`
+      INSERT INTO "payouts" ("id","payoutNumber","expertId","provider","grossAmountMinor","commissionAmountMinor","netAmountMinor","currency","idempotencyKey","updatedAt")
+      VALUES (gen_random_uuid(),'PYT-CHK','55555555-5555-5555-5555-555555555555','RAZORPAY',1000,100,999,'INR','chk-key-1', now())
+    `);
+
+    // The correct arithmetic must be accepted.
+    await db.exec(`
+      INSERT INTO "commissions" ("id","commissionRuleId","commissionRuleVersion","grossAmountMinor","commissionAmountMinor","expertPayableMinor","currency","calculationSnapshot","updatedAt")
+      VALUES (gen_random_uuid(),'77777777-7777-7777-7777-777777777777',1,1000,100,900,'INR','{}'::jsonb, now())
+    `);
+  });
+
+  it('rejects a negative or zero ledger amount — direction is entryType, not sign', async () => {
+    await db.exec(`
+      INSERT INTO "transactions" ("id","transactionNumber","type","amountMinor","currency")
+      VALUES ('88888888-8888-8888-8888-888888888888','TXN-CHK','ADJUSTMENT',1000,'INR')
+    `);
+    await mustReject(`
+      INSERT INTO "transaction_ledger" ("id","transactionId","account","entryType","amountMinor","currency")
+      VALUES (gen_random_uuid(),'88888888-8888-8888-8888-888888888888','PLATFORM_CASH','DEBIT',-1,'INR')
+    `);
+    await mustReject(`
+      INSERT INTO "transaction_ledger" ("id","transactionId","account","entryType","amountMinor","currency")
+      VALUES (gen_random_uuid(),'88888888-8888-8888-8888-888888888888','PLATFORM_CASH','DEBIT',0,'INR')
+    `);
+  });
+
+  it('rejects an invalid ISO-4217 currency code', async () => {
+    await mustReject(`
+      INSERT INTO "transactions" ("id","transactionNumber","type","amountMinor","currency")
+      VALUES (gen_random_uuid(),'TXN-CHK-BADCUR','ADJUSTMENT',1000,'xx1')
+    `);
+  });
+
+  it('makes a HIGH-risk AI action impossible to auto-approve', async () => {
+    await db.exec(`
+      INSERT INTO "ai_agents" ("id","key","name","updatedAt")
+      VALUES ('99999999-9999-9999-9999-999999999999','MATCHING','M', now());
+      INSERT INTO "ai_runs" ("id","agentId","model","provider","inputPayload")
+      VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','99999999-9999-9999-9999-999999999999','claude-opus-5','anthropic','{}'::jsonb);
+    `);
+
+    await mustReject(`
+      INSERT INTO "ai_actions" ("id","aiRunId","toolName","riskTier","requestedPayload","status")
+      VALUES (gen_random_uuid(),'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','createContractDraft','HIGH','{}'::jsonb,'AUTO_APPROVED')
+    `);
+
+    // Executing a HIGH-risk action without a named approver is also rejected.
+    await mustReject(`
+      INSERT INTO "ai_actions" ("id","aiRunId","toolName","riskTier","requestedPayload","status")
+      VALUES (gen_random_uuid(),'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','createContractDraft','CRITICAL','{}'::jsonb,'EXECUTED')
+    `);
+
+    // A LOW-risk action may auto-approve.
+    await db.exec(`
+      INSERT INTO "ai_actions" ("id","aiRunId","toolName","riskTier","requestedPayload","status")
+      VALUES (gen_random_uuid(),'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','searchExperts','LOW','{}'::jsonb,'AUTO_APPROVED')
+    `);
+  });
+
+  it('rejects an out-of-range score, rating or availability window', async () => {
+    await mustReject(`
+      INSERT INTO "expert_performance" ("id","expertId","onTimeDeliveryRate","updatedAt")
+      VALUES (gen_random_uuid(),'55555555-5555-5555-5555-555555555555',10001, now())
+    `);
+    await mustReject(`
+      INSERT INTO "availability" ("id","expertId","dayOfWeek","startMinute","endMinute","timezone","updatedAt")
+      VALUES (gen_random_uuid(),'55555555-5555-5555-5555-555555555555',1,600,600,'UTC', now())
+    `);
+    await mustReject(`
+      INSERT INTO "availability" ("id","expertId","dayOfWeek","startMinute","endMinute","timezone","updatedAt")
+      VALUES (gen_random_uuid(),'55555555-5555-5555-5555-555555555555',9,540,1080,'UTC', now())
+    `);
+  });
+
+  it('rejects self-parenting in hierarchies', async () => {
+    await mustReject(
+      `UPDATE "categories" SET "parentId" = "id" WHERE "id" = '11111111-1111-1111-1111-111111111111'`,
+    );
+  });
+});
+
 describe('AI auditability', () => {
   it('links runs to agent, version, model and provider', async () => {
     const columns = await rows<{ column_name: string }>(

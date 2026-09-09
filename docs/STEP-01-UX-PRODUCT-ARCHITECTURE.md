@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Draft — awaiting sign-off** |
+| Status | **Signed off** (2026-09-10) |
 | Phase | STEP 1 / Phase 1 |
 | Derived from | `docs/PRODUCT-BLUEPRINT.md` (Master Execution Prompt), sections 2–8, 13–16, 21–23, 26–29, 43–44 |
 | Authority | Product/UX source of truth. Visual source of truth is Figma (**not yet supplied — see §17**). |
@@ -350,4 +350,4 @@ Each is a decision the master spec did not state. Approve or reject individually
 - [x] Mobile priorities defined per role
 - [x] Design token strategy and component inventory fixed
 - [x] Missing inputs and assumptions recorded explicitly
-- [ ] **Sign-off pending**
+- [x] **Signed off 2026-09-10** — assumptions A-01..A-07 approved; A-01 refined to preserve the entry source (`Project.source`)

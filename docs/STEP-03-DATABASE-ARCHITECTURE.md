@@ -2,11 +2,12 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Implemented — awaiting sign-off** |
+| Status | **Complete (incl. final hardening) — awaiting sign-off** |
 | Phase | STEP 3 / Phase 3 |
 | Depends on | `STEP-01-UX-PRODUCT-ARCHITECTURE.md`, `STEP-02-TECHNICAL-ARCHITECTURE.md` (both signed off) |
 | Approved decisions applied | `T-03` money, `T-04` identifiers, `A-01` unified Project + preserved entry source |
-| Artifacts | `prisma/schema.prisma`, `prisma/migrations/*_init/migration.sql`, `prisma/seed.ts`, `domain/money/`, `tests/` |
+| Artifacts | `prisma/schema.prisma`, 2 migrations, `prisma/seed.ts`, `domain/money/`, `docker-compose.yml`, `tests/` |
+| Hardening | CHECK constraints added (D-05); migration **applied** and seed **executed** against real PostgreSQL |
 
 ---
 
@@ -18,8 +19,9 @@
 | Database tables | **60** (59 models + 1 implicit join table for portfolio↔skill) |
 | Enums | **57** |
 | Foreign keys | **148** |
-| Indexes | **173** (125 standard + 48 unique) |
-| Migration SQL | 2,312 lines |
+| CHECK constraints | **67** |
+| Indexes (live) | **234** (109 unique, incl. PK/unique backing indexes) |
+| Migrations | **2** (init + CHECK constraints), applied |
 
 Every domain named in the sign-off is implemented. Nothing was stubbed.
 
@@ -67,7 +69,7 @@ Flow-specific context is preserved by nullable, source-meaningful links rather t
 
 Everything downstream — requirements, recommendations, assignments, contracts, milestones, orders, payments, ledger, commission, payouts, reviews, AI history — attaches to the one spine. There is no second commercial subsystem.
 
-> **Not enforced in the database:** the correlation between `source` and which nullable link is populated. Postgres `CHECK` constraints could express this, but Prisma does not model them natively. It is enforced in the service layer and is listed as an open item (§12).
+> **Enforced in the database** as of the D-05 hardening: CHECK constraints reject a link that contradicts the row's `source`, while never requiring a link to exist yet. See §11.1 for the reasoning and the deliberate limit.
 
 ### 4.2 One taxonomy, not three
 
@@ -91,7 +93,7 @@ Every score and rate is an integer in basis points (`9400` = 94.00%): recommenda
 
 ### 4.7 `Dispute` added beyond the minimum list
 
-The approved state machines contain `DISPUTED` on projects, contracts and milestones, and STEP 01 specifies an admin disputes surface — but the required-domain list did not name a dispute table. Without one those states would be unreachable and meaningless. A minimal `Dispute` model was added. **Flagged for approval** (§12).
+The approved state machines contain `DISPUTED` on projects, contracts and milestones, and STEP 01 specifies an admin disputes surface — but the required-domain list did not name a dispute table. Without one those states would be unreachable and meaningless. A minimal `Dispute` model was added — **approved as D-01**.
 
 ## 5. Money architecture (`T-03`)
 
@@ -132,7 +134,7 @@ All 59 primary keys are `UUID` defaulting to `uuid(7)` — time-sortable (good i
 
 ## 8. Constraint strategy
 
-48 unique constraints. The ones that carry business guarantees:
+48 unique constraints declared in the schema (109 unique indexes live, once PK/unique backing indexes are counted), plus 67 CHECK constraints (§11). The unique constraints that carry business guarantees:
 
 | Constraint | Prevents |
 | --- | --- |
@@ -182,44 +184,188 @@ This makes master spec §34 answerable for any decision: which agent, which vers
 - **`Recommendation`** persists 11 score dimensions plus `evidence` and `rationale`. The score is explicitly *not* the only source of truth — the evidence and the linked run are.
 - **Agents have no database grants.** The schema is reached only through the service/tool layer defined in STEP 02 §11.2; nothing here grants an agent direct access.
 
-## 11. Verification results
+## 11. CHECK constraints (D-05 hardening)
+
+Prisma cannot express CHECK constraints, so they are added as raw SQL in
+`prisma/migrations/20260909194153_add_check_constraints/migration.sql`. Prisma's runner applies and
+preserves them; they are invisible to `schema.prisma`, and a drift check confirms this causes no
+drift.
+
+**67 CHECK constraints** are live in the database.
+
+### 11.1 Project source to relationship semantics
+
+Enforced in the **negative** form, which was a deliberate choice:
+
+```sql
+CHECK ("source" = 'PREDEFINED_SERVICE' OR "serviceId" IS NULL)
+CHECK ("source" = 'DIRECT_HIRE'        OR "invitedExpertId" IS NULL)
+```
+
+This rejects *contradictory* data - a posted project carrying a service link - while **never
+requiring a relationship to exist yet**. A `PREDEFINED_SERVICE` project with no `serviceId` populated
+is still valid, so the workflow can legitimately create a project before every link is resolved. Both
+properties are tested: the contradictions are rejected, and the incomplete-but-valid states are
+accepted.
+
+> **Why presence is *not* enforced at the database level.** A constraint like "`PREDEFINED_SERVICE`
+> must have a `serviceId`" would collide with the `ON DELETE SET NULL` behaviour of that foreign key:
+> deleting a service would null the column, and the CHECK would then block the delete. That is
+> exactly the unnecessary coupling to avoid, so the presence invariant stays in the service layer,
+> per your instruction.
+
+### 11.2 Financial identities
+
+| Constraint | Guarantee |
+| --- | --- |
+| `commissions_gross_equals_commission_plus_payable` | A commission must account for the whole gross, exactly |
+| `payouts_net_equals_gross_minus_commission` | Payout net must reconcile |
+| `orders_total_equals_subtotal_plus_tax` | Order totals must add up |
+| `payments_refund_within_amount` | A payment can never be over-refunded |
+| `ledger_amount_positive` | Ledger direction is `entryType`, never a negative amount |
+| `*_currency_iso4217` | `~ '^[A-Z]{3}$'` on all 9 financially critical tables |
+| `transactions_reversal_not_self` | A transaction cannot be its own reversal |
+
+### 11.3 Trust and AI guarantees
+
+| Constraint | Guarantee |
+| --- | --- |
+| `reviews_no_self_review` | **Self-review is impossible at the database level** |
+| `ai_actions_high_risk_never_auto_approved` | A HIGH/CRITICAL action can never be recorded as auto-approved |
+| `ai_actions_high_risk_execution_requires_approver` | An executed HIGH/CRITICAL action must name its human approver |
+| `recommendations_scores_in_basis_points` | No score can exceed 100% |
+| `ratings_score_range`, `reviews_overall_rating_range` | Ratings stay within 1..5 |
+
+The two `ai_actions` constraints are notable: the human-in-the-loop rule is now enforced by
+PostgreSQL, not only by application code.
+
+Range and coherence constraints also cover availability windows, commission-rule windows, profile
+completeness, service pricing, time-entry durations, team allocation, and self-parenting in the
+category, task and message hierarchies.
+
+## 12. Development database
+
+**Primary path - `docker-compose.yml`** (PostgreSQL 17-alpine). Bound to `127.0.0.1` only, so the
+database is never network-reachable. Credentials come from `.env` with development-only defaults.
+
+```bash
+docker compose up -d
+npm run db:migrate
+npm run db:seed
+```
+
+**This machine has no Docker, podman or WSL** (verified). To complete the work rather than leave it
+blocked, a Docker-less path was added: `scripts/pglite-server.mjs` runs genuine PostgreSQL (PGlite,
+compiled to WASM) and exposes it over the PostgreSQL wire protocol on `127.0.0.1:5433`, so Prisma's
+real migration runner and the seed connect exactly as they would to a server.
+
+```bash
+npm run db:dev-server      # terminal 1
+npm run db:migrate:deploy  # terminal 2
+npm run db:seed
+```
+
+This is **development/test infrastructure only**, within the D-04 approval - never a production
+dependency. `@electric-sql/pglite-socket` 0.2.11 is a stable release, consistent with the
+no-pre-release preference.
+
+> **One connection detail:** `DATABASE_URL` needs `?sslmode=disable&connection_limit=1` against this
+> server. Prisma's Rust schema engine attempts SSL negotiation first and reports a misleading
+> `P1001 Can't reach database server` when it is refused; PGlite also serves one connection at a
+> time. Against the Docker Compose Postgres, neither parameter is needed.
+
+## 13. Verification results
+
+Everything below was executed, not inferred.
 
 | Check | Result |
 | --- | --- |
-| `prisma validate` | ✅ Valid |
-| `prisma format` | ✅ Applied |
-| `prisma generate` | ✅ Client generated |
-| Migration SQL generated | ✅ 2,312 lines |
-| **Migration applied to a real Postgres engine** | ✅ Executes cleanly (in-process via PGlite — see below) |
-| `tsc --noEmit` | ✅ **0 errors** (strict, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`) |
-| `eslint .` | ✅ **0 problems** |
-| `vitest run` | ✅ **41/41 passing** |
-| Secret scan | ✅ Clean — `.env` gitignored, `.env.example` holds names only |
+| PostgreSQL reachable | PASS - **PostgreSQL 18.3** (PGlite 0.5.8) on `127.0.0.1:5433` |
+| Prisma connects | PASS - schema engine and client both connect |
+| `prisma migrate deploy` | PASS - **2 migrations applied** |
+| `_prisma_migrations` | PASS - both rows present, `applied_steps_count = 1`, finished |
+| `prisma migrate status` | PASS - "Database schema is up to date!" |
+| Schema drift | PASS - **No difference detected** (exit code 0) |
+| `prisma db seed` | PASS - succeeded; **repeatable**, identical counts on a second run |
+| Seed production guard | PASS - `NODE_ENV=production` refuses to run |
+| Live database verification | PASS - **35/35 checks** |
+| `prisma validate` | PASS |
+| `tsc --noEmit` | PASS - 0 errors |
+| `eslint .` | PASS - 0 problems |
+| `vitest run` | PASS - **49/49** |
+| Secret scan | PASS - clean |
 
-**41 tests:** 23 unit tests on money (precision, basis-point rounding, allocation conservation, currency mismatch, large-value handling beyond `Number.MAX_SAFE_INTEGER`), and 18 integration tests that apply the real migration and assert tables, enum values, `BIGINT` money, `CHAR(3)` currency, UUID keys, absence of sequential IDs, FK count, relational skills, the unique constraints above, a **live duplicate-webhook rejection**, absence of card-data columns, append-only ledger shape, and AI auditability columns.
+### 13.1 Live database facts
 
-> **Why PGlite.** No PostgreSQL server, Docker, or listener on 5432 exists on this machine (checked). PGlite runs genuine PostgreSQL compiled to WASM in-process, so the DDL is executed and asserted against a real engine rather than merely generated. It is a **devDependency used only by tests** — no production dependency, and removable once a real dev database exists. Flagged for approval (§12).
+| Object | Count |
+| --- | --- |
+| Tables | 60 |
+| Enums | 57 |
+| Foreign keys | 148 |
+| CHECK constraints | 67 |
+| Unique indexes | 109 |
+| Total indexes | 234 |
 
-## 12. Not done, and why
+*(Index totals exceed the migration's `CREATE INDEX` count because PostgreSQL also creates a backing
+index for every primary key and unique constraint.)*
 
-| Item | Status | Reason |
-| --- | --- | --- |
-| **`prisma migrate dev` against a dev database** | ❌ **Not run** | No PostgreSQL server, Docker, or port 5432 listener on this machine. The migration file is generated and proven to execute, but has never been applied through Prisma's migration runner, so `_prisma_migrations` has no row. |
-| **`prisma db seed`** | ❌ **Not run** | Same blocker. Prisma has no PGlite adapter (`@prisma/adapter-pglite` does not exist), so the seed cannot reach the in-process engine. It is typechecked and lint-clean but **never executed**. |
-| Source↔link `CHECK` constraints | Deferred | Prisma cannot express them; enforced in the service layer, or addable as raw SQL in a follow-up migration if you want it at the database level |
-| Background job table | Deferred | `T-05` architecture is approved but jobs are a Phase 7 concern; building it now would be premature |
+### 13.2 Lifecycle verified end to end
 
-### To unblock
+The full chain resolves in a single SQL join against seeded data:
 
-Any one of these, then `npm run db:migrate && npm run db:seed`:
-
-```bash
-docker run --name marketplace-db -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=marketplace_dev -p 5432:5432 -d postgres:17
+```
+customer -> project -> ai_run -> recommendation -> assignment -> contract -> milestone
+  -> deliverable -> order -> payment -> webhook -> transaction -> commission -> payout -> review
 ```
 
-Or install PostgreSQL 17 locally, or point `DATABASE_URL` at a free hosted dev database (Neon, Supabase). `.env` already contains a matching local connection string.
+The audit log carries both a `USER` actor and an `AI_AGENT` actor.
 
-## 13. Open decisions
+### 13.3 Financial validation
+
+| Check | Result |
+| --- | --- |
+| Ledger debits = credits | PASS - 11,600,000 = 11,600,000 minor units |
+| Escrow drained after release | PASS - `CUSTOMER_ESCROW` nets to 0 |
+| Commission identity | PASS - 4,000,000 = 400,000 + 3,600,000 INR |
+| Commission is exactly 1000bp | PASS - 400,000 of 4,000,000 |
+| Payout identity | PASS - 3,600,000 = 4,000,000 - 400,000 |
+| Payout matches commission payable | PASS - 3,600,000 = 3,600,000 |
+| Money columns bigint | PASS - 0 non-bigint |
+| Floating-point columns | PASS - 0 |
+| Currency columns CHAR(3) | PASS - 0 malformed |
+| Financial rows missing currency | PASS - 0 |
+| Precision beyond float range | PASS - 2^53+1 stored and read back exactly |
+
+### 13.4 Enforcement proven by rejection
+
+Each of these was attempted against the live database and **rejected by PostgreSQL**:
+
+duplicate webhook event (`23505`) - duplicate payment idempotency key (`23505`) - self-review - a
+commission that does not add up - a payout that does not reconcile - over-refund - negative ledger
+amount - rating out of range - score above 100% - `serviceId` on a `POSTED_PROJECT` -
+`invitedExpertId` on a `POSTED_PROJECT` - HIGH-risk AI action set to `AUTO_APPROVED` - invalid
+currency code - zero-length availability window.
+
+The converse was confirmed too: valid `PREDEFINED_SERVICE` + `serviceId`, and a
+`PREDEFINED_SERVICE` project with no service link yet, are both **accepted**. The constraints do not
+forbid legitimate workflow states.
+
+## 14. Remaining limitations
+
+The two blockers from the previous review are **resolved** — the migration was applied through
+Prisma's real runner and the seed executed, both against live PostgreSQL (§13).
+
+What remains:
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| Verified on PostgreSQL **18.3** (PGlite), not 17 | Open | `docker-compose.yml` pins `postgres:17-alpine`, which is the version the team will run. Nothing in the schema is version-specific, but the exact engine build differs from the compose target until Docker is available here. |
+| `prisma migrate dev` not usable on the PGlite server | Accepted | `migrate dev` provisions a *shadow database*, which requires `CREATE DATABASE`; PGlite serves a single database. `migrate deploy` was used instead — strictly non-destructive, and it records migrations in `_prisma_migrations` identically. Against Docker Compose, `npm run db:migrate` works normally. |
+| Source→link **presence** invariant | Service layer | Deliberate; see §11.1 for why a database CHECK would create harmful coupling with `ON DELETE SET NULL`. |
+| Background job table | Deferred | `T-05` is approved architecture, but jobs are a Phase 7 concern. |
+| Seed repeatability via TRUNCATE | Accepted | The seed truncates before inserting, which is what makes it repeatable. It is guarded to `development`/`test` and refuses to run otherwise (verified). |
+
+## 15. Open decisions
 
 | ID | Decision | Default taken |
 | --- | --- | --- |
@@ -230,15 +376,17 @@ Or install PostgreSQL 17 locally, or point `DATABASE_URL` at a free hosted dev d
 | D-05 | Source↔link consistency enforced in services, not `CHECK` constraints | Service layer, revisitable |
 | D-06 | Prisma 7 requires `prisma.config.ts` + a driver adapter (`@prisma/adapter-pg`, `pg`) | Adopted; this is a Prisma 7 requirement, not a preference |
 
-## 14. Definition of done — STEP 3
+## 16. Definition of done — STEP 3
 
 - [x] All required domains modelled (59 models, 60 tables)
 - [x] `T-03` money, `T-04` identifiers, `A-01` unified project + preserved source applied and verified
 - [x] Foreign keys, unique constraints, indexes, lifecycle enums, timestamps
-- [x] Migration generated and proven to execute against a real Postgres engine
+- [x] Migration generated, applied, and recorded in `_prisma_migrations` with no drift
 - [x] Development-only seed authored, with a ledger-balance assertion
 - [x] Money domain utility centralized and unit-tested
 - [x] Typecheck, lint and 41 tests passing
 - [x] No secrets committed
-- [ ] **Migration applied and seed executed against a provisioned dev database** — blocked, see §12
+- [x] CHECK constraints added and proven by rejection (D-05 hardening)
+- [x] `docker-compose.yml` for a localhost-only development PostgreSQL
+- [x] **Migration applied through Prisma and seed executed against live PostgreSQL** — 35/35 live checks passed
 - [ ] **Sign-off pending**

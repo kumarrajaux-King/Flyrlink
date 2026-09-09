@@ -6,7 +6,7 @@ Maintained continuously. Updated at the end of every phase.
 | --- | --- | --- | --- |
 | 1 | UX + Product Architecture | ✅ **Signed off** (2026-09-10) | `STEP-01-UX-PRODUCT-ARCHITECTURE.md` |
 | 2 | Technical Architecture | ✅ **Signed off** (2026-09-10) | `STEP-02-TECHNICAL-ARCHITECTURE.md` |
-| 3 | Database Architecture | ✅ **Implemented — awaiting sign-off** | `STEP-03-DATABASE-ARCHITECTURE.md`, `prisma/schema.prisma`, migration, seed, `domain/money/` |
+| 3 | Database Architecture | ✅ **Complete — migration applied, seed run; awaiting sign-off** | `STEP-03-DATABASE-ARCHITECTURE.md`, `prisma/schema.prisma`, 2 migrations, seed, `domain/money/`, `docker-compose.yml` |
 | 4 | Authentication + RBAC | ⏭️ **Next — not started** | |
 | 5 | Expert Marketplace | ⬜ Not started — **blocked by `M-01` (Figma)** | |
 | 6 | Customer Project Marketplace | ⬜ Not started — **blocked by `M-01`** | |
@@ -51,20 +51,42 @@ Phase 3 delivered 59 models / 60 tables / 57 enums / 148 foreign keys / 173 inde
 migration, a development seed, and a centralized money utility with unit tests. Typecheck, lint and
 41 tests pass; the migration was executed against a real Postgres engine in-process.
 
-**Blocked:** no PostgreSQL server, Docker, or port 5432 listener exists on this machine, so
-`prisma migrate dev` and `prisma db seed` have **not** been run. See STEP-03 §12 for the one-command
-unblock.
+**Blocked at the time:** no PostgreSQL server, Docker, or port 5432 listener existed on this machine,
+so `prisma migrate dev` and `prisma db seed` had not been run. *(Superseded by the next entry - both
+were subsequently executed against live PostgreSQL.)*
+
+### 2026-09-10 — STEP 3 hardening completed
+
+STEP 3 was approved with final hardening. Delivered:
+
+- **D-05 hardening:** 67 CHECK constraints added via a second migration. `Project.source` to
+  relationship consistency is enforced in the negative form (a link that contradicts `source` is
+  rejected) but never requires a link to exist yet, so no legitimate workflow state is blocked.
+  Financial identities (commission adds up, payout reconciles, no over-refund), self-review
+  impossibility, and the HIGH/CRITICAL AI human-approval rule are now enforced by PostgreSQL.
+- **`docker-compose.yml`** for a localhost-only development PostgreSQL 17.
+- **Both remaining blockers resolved:** the migration was applied through Prisma's real runner
+  (`_prisma_migrations` populated, no drift) and the seed executed against live PostgreSQL 18.3.
+  35/35 live verification checks passed, including the full customer→payout→review lifecycle and a
+  balanced ledger.
+- This machine has no Docker/podman/WSL, so `scripts/pglite-server.mjs` was added as a Docker-less
+  development server (PGlite over the Postgres wire protocol). Test/development infrastructure only,
+  within the D-04 approval.
+
+All STEP 3 decisions D-01 through D-06 are approved. `prisma migrate dev` is unusable against the
+PGlite server because it provisions a shadow database; `migrate deploy` was used instead, which is
+non-destructive and records migrations identically.
 
 ## Open decisions requiring sign-off
 
-### STEP 03 — database decisions
+### STEP 03 — database decisions (all APPROVED 2026-09-10)
 | ID | Decision |
 | --- | --- |
 | D-01 | `Dispute` model added beyond the required list (the approved `DISPUTED` states need it) |
 | D-02 | One `Category` tree instead of separate skill/project/service taxonomies |
 | D-03 | `Recommendation` serves as the AI recommendation model — one model, not two |
-| D-04 | PGlite added as a test-only devDependency to verify the migration |
-| D-05 | Source↔link consistency enforced in services rather than `CHECK` constraints |
+| D-04 | PGlite as test/development-only infrastructure (verification + Docker-less dev server) |
+| D-05 | Source↔link consistency: **CHECK constraints** for contradiction, service layer for presence |
 | D-06 | Prisma 7 requires `prisma.config.ts` + `@prisma/adapter-pg` + `pg` |
 
 ### STEP 01 — product assumptions

@@ -20,7 +20,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:dev-server": "node scripts/pglite-server.mjs",
+    "db:verify": "prisma migrate status"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
@@ -30,6 +32,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
+    "@electric-sql/pglite-socket": "0.2.11",
     "@types/node": "22.20.2",
     "@types/pg": "8.23.1",
     "eslint": "10.10.0",

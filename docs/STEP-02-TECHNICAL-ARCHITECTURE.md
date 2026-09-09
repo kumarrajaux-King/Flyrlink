@@ -2,14 +2,14 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Draft — awaiting sign-off** |
+| Status | **Signed off** (2026-09-10) |
 | Phase | STEP 2 / Phase 2 |
 | Derived from | `docs/PRODUCT-BLUEPRINT.md` (Master Execution Prompt), sections 9–20, 24–26, 30–34 |
 | Depends on | `docs/STEP-01-UX-PRODUCT-ARCHITECTURE.md` |
 | Blocks | STEP 3 (Database Architecture) and all implementation phases |
 | Authority | **Business + technical source of truth.** The backend owns all state machines. |
 
-> **Derivation note.** No prior STEP 2 artifact existed. This document was reconstructed **strictly** from the Master Execution Prompt. Technology choices the master spec did not fix are recorded in the **Decision Register (§21)** as `T-xx`, each independently approvable. Nothing here has been installed or scaffolded yet — this document is for sign-off first.
+> **Derivation note.** No prior STEP 2 artifact existed. This document was reconstructed **strictly** from the Master Execution Prompt. Technology choices the master spec did not fix are recorded in the **Decision Register (§21)** as `T-xx`. All were approved on 2026-09-10, with `T-03` (money) and `T-04` (identifiers) confirmed explicitly.
 
 ---
 
@@ -424,7 +424,9 @@ Server components for data-heavy reads; client components only where interaction
 
 ## 19. Proposed dependencies
 
-Exact versions resolve at install time; nothing is installed yet.
+**Installed as of Phase 3** (pinned exact, stable only): `prisma` 7.10.0 - `@prisma/client` 7.10.0 - `@prisma/adapter-pg` 7.10.0 - `pg` 8.23.0 - `typescript` 5.9.3 - `tsx` - `vitest` - `eslint` - `typescript-eslint` - `@types/node` - `@types/pg`, plus `@electric-sql/pglite` and `@electric-sql/pglite-socket` as test/development-only infrastructure.
+
+The remainder below is planned; exact versions resolve when their phase installs them.
 
 **Runtime** — `next` · `react` · `react-dom` · `typescript` · `@prisma/client` · `prisma` · `zod` · `react-hook-form` · `@hookform/resolvers` · `next-auth@5` · `@auth/prisma-adapter` · `argon2` · `tailwindcss` · `class-variance-authority` · `clsx` · `tailwind-merge` · `lucide-react` · `@radix-ui/*` (via shadcn/ui) · `@anthropic-ai/sdk` · `date-fns` · `uuid`
 
@@ -488,4 +490,4 @@ Master spec §35 forbids unnecessary packages. Each addition must be justified i
 - [x] Security architecture defined, incl. prompt-injection boundary
 - [x] Environment variable names listed — **no secrets committed**
 - [x] Testing, deployment, portability and risks documented
-- [ ] **Sign-off pending**
+- [x] **Signed off 2026-09-10** — decisions T-01..T-10 approved

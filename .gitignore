@@ -46,3 +46,5 @@ prisma/*.db-journal
 .turbo
 *.tsbuildinfo
 src/generated/
+.pglite/
+.tmp-verify/

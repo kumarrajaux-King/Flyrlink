@@ -1,0 +1,40 @@
+# Local DEVELOPMENT PostgreSQL only.
+#
+# SAFETY
+#   - Bound to 127.0.0.1 so the database is never reachable from the network.
+#   - Credentials come from .env (gitignored) with development-only defaults.
+#   - Never point this at, or reuse credentials from, a production database.
+#
+# Usage:
+#   docker compose up -d
+#   npm run db:migrate
+#   npm run db:seed
+#
+# PostgreSQL 17 — matches the version the Prisma 7 architecture targets.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: marketplace-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-marketplace_dev}
+      # Deterministic collation so ordering matches across developer machines.
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    ports:
+      # 127.0.0.1 prefix is deliberate: localhost-only, never 0.0.0.0.
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-marketplace_dev}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  postgres-dev-data:
+    name: marketplace-postgres-dev-data

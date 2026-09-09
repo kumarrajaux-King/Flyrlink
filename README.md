@@ -2,7 +2,7 @@
 
 A production-grade marketplace where the client describes an **outcome**, and the platform understands the requirement, plans the project, finds the right expert or team, coordinates execution, monitors risk, and manages the commercial workflow.
 
-> **Status: architecture phase.** No application code exists yet. Phases 1 and 2 are drafted and awaiting sign-off; Phase 3 (database) is next. See [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md).
+> **Status: Phase 3 complete.** Phases 1-3 are signed off or awaiting final sign-off. The database schema (59 models, 60 tables) is implemented, migrated and seeded. Phase 4 (Authentication + RBAC) is next. See [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md).
 
 ## Documentation
 
@@ -13,6 +13,7 @@ Read in this order:
 | [`docs/PRODUCT-BLUEPRINT.md`](docs/PRODUCT-BLUEPRINT.md) | **Source of truth** — vision, non-negotiables, working method |
 | [`docs/STEP-01-UX-PRODUCT-ARCHITECTURE.md`](docs/STEP-01-UX-PRODUCT-ARCHITECTURE.md) | Roles, flows, route map, screen states, design system strategy |
 | [`docs/STEP-02-TECHNICAL-ARCHITECTURE.md`](docs/STEP-02-TECHNICAL-ARCHITECTURE.md) | Stack, layering, APIs, state machines, AI agents, payments, security |
+| [`docs/STEP-03-DATABASE-ARCHITECTURE.md`](docs/STEP-03-DATABASE-ARCHITECTURE.md) | Schema, constraints, money architecture, verification results |
 | [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md) | Phase status, open decisions, blocking inputs |
 
 ## The three experiences
@@ -21,11 +22,27 @@ Read in this order:
 2. **Post a Project** — the agentic flagship flow
 3. **Buy a Predefined Service** — fixed scope, fixed price
 
-## Planned stack
+## Getting started
 
-Next.js (App Router) · React · TypeScript · Tailwind CSS · shadcn/ui · Radix · PostgreSQL · Prisma · Zod · Auth.js v5 · Anthropic SDK (behind a provider adapter) · Vitest · Playwright
+```bash
+npm install
+cp .env.example .env          # development defaults; never real credentials
+docker compose up -d          # localhost-only PostgreSQL 17
+npm run db:migrate
+npm run db:seed
+npm test
+```
 
-Nothing is installed yet. Dependencies are added phase by phase, each justified in that phase's report.
+No Docker? `npm run db:dev-server` runs a Docker-less PostgreSQL for development
+(see [STEP-03 §12](docs/STEP-03-DATABASE-ARCHITECTURE.md)).
+
+## Stack
+
+**Installed and in use:** PostgreSQL · Prisma 7.10.0 · TypeScript 5.9.3 · Vitest · ESLint
+
+**Planned for later phases:** Next.js (App Router) · React · Tailwind CSS · shadcn/ui · Radix · Zod · Auth.js v5 · Anthropic SDK (behind a provider adapter) · Playwright
+
+Dependencies are added phase by phase, each justified in that phase's report.
 
 ## Working rules
 
