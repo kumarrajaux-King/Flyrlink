@@ -118,6 +118,18 @@ Mapping delivered in `STEP-05-FIGMA-ARCHITECTURE-MAPPING.md`. Headline findings:
 
 No UI code was written.
 
+### 2026-09-10 — R-3 resolved
+
+**Decision: keep the approved architecture and adapt the UI to it.** The project → contract → milestone
+→ escrow → payout spine stands; no `Session`/`Booking` model is added; `A-01` stays intact. Expert cards
+render "from ₹X" / "₹X/hr" from existing fields, and "Bookings" is replaced by the role-segmented
+sidebar. The Figma's visual language, layout and card anatomy are preserved — only the commercial
+vocabulary changes.
+
+**Still open:** R-1 (Figma MCP quota re-checked and still exhausted — exact hex values unavailable),
+R-7 (add `city`/`country` to `ExpertProfile`), M-07 (no mobile designs), and approval of the mapping
+itself plus authorization to begin Phase 5.
+
 ## Open decisions requiring sign-off
 
 ### STEP 04 — authentication decisions
@@ -174,7 +186,7 @@ No UI code was written.
 | M-01 | ~~Figma file/URL~~ — **supplied 2026-09-10**; superseded by M-06/M-07 | — |
 | M-06 | **Figma MCP access** (Starter tier quota exhausted) — blocks exact token extraction | Phase 5 token layer |
 | M-07 | **Mobile designs** — Figma is desktop-only (1440px) | Phase 5+ responsive work |
-| M-08 | **Business-model decision** — Figma models session booking, architecture implements contracts/milestones | Phases 5, 6 |
+| ~~M-08~~ | ~~Business-model decision~~ — **RESOLVED 2026-09-10: keep architecture, adapt UI** | — |
 | M-02 | Brand identity assets | Design tokens |
 | M-03 | Commission model (rates, tiers) | Phase 10 |
 | M-04 | Launch geography + legal entity | Payment provider selection, currency, tax |

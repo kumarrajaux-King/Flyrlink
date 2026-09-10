@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Analysis only — no UI implemented. Awaiting architecture review.** |
+| Status | **Analysis only — no UI implemented. R-3 resolved; awaiting review of the rest.** |
 | Figma file | `Flyrlink` · key `7vuvJsabjDaWD3jLi6C2UQ` |
 | Inspected | 2026-09-10, via authenticated browser session |
 | Authority | Figma is the **visual/UX** source of truth. STEP 01–04 remain authoritative for domain, data, RBAC, security and AI. |
@@ -205,14 +205,14 @@ This is the most important section. **The Figma models a session-booking marketp
 
 | Figma screen | Conflict | Required modification |
 | --- | --- | --- |
-| **Browse Expert** | Cards show **₹/session** and copy says "ready to book" | Our `ExpertProfile` stores `hourlyRateMinor`; `Service` stores `basePriceMinor` for fixed-scope packages. Either re-label to "from ₹X" / "₹X/hr", or add session pricing to the domain — **an architecture change requiring approval, not a UI decision.** |
+| **Browse Expert** | Cards show **₹/session** and copy says "ready to book" | **Resolved (R-3):** re-label to **"from ₹X"** (cheapest `ServicePackage`) or **"₹X/hr"** (`ExpertProfile.hourlyRateMinor`). No session pricing is added to the domain. |
 | **Browse Expert** | Card shows **📍 location** (Chennai, Bengaluru) | **`ExpertProfile` has no location field** — only `timezone`. Either add `city`/`country` (small migration) or drop it from the card. Recommend adding it: location is a genuine discovery signal and `A-07` already anticipates geography. |
 | **Browse Expert** | Sort: "Most booked" | Maps acceptably to `ExpertPerformance.completedProjects`. Re-label "Most hired". |
 | **Browse Expert** | Category chips are hard-coded (Wellness, Design, Tutoring, Finance, Creative, Coaching) | Must be driven by our nested `Category` tree, not a fixed list. |
 | **Browse Expert** | No AI presence at all | Add the AI matching entry point. This is the product's differentiator and the Figma has no representation of it. |
 | **Register Your Project** | Collects a *listing*, not a *project brief* | Rebuild as the **7-step AI intake wizard** (STEP 01 §8): describe outcome → AI analysis → editable structured requirements → clarifications → estimate → matching → approve. Keep the visual language; replace the flow. |
 | **Become an expert** | "List your service in 5 minutes" is a single-shot form | Our expert onboarding needs profile + skills (relational) + certifications + portfolio + availability + **verification submission**. Expand into a multi-step flow. |
-| **Authenticated nav** | Two items (Bookings, Messages) | Replace with the role-segmented sidebar from STEP 01 §6, including a role switcher (`A-02`). |
+| **Authenticated nav** | Two items (Bookings, Messages) | **Resolved (R-3):** replace with the role-segmented sidebar from STEP 01 §6, including the role switcher (`A-02`). |
 | **All screens** | Desktop only | Mobile designs required (§I / F-7). |
 | **All screens** | No loading/empty/error/permission states | Required by the STEP 01 §7 DoD gate. |
 
@@ -256,8 +256,25 @@ Build a **semantic token layer** mapping Figma's literal values to roles:
 
 Components reference semantic names only. This preserves the Figma's *visual* identity while satisfying STEP 01 §14, and means a rebrand does not touch components. Adopt the type and spacing scales **directly** — they are already well-formed.
 
-### R-3 — Resolve the business-model conflict before building Phase 5/6 (needs your decision)
-"₹/session" and "Bookings" versus our contract/milestone/escrow spine is not a styling difference. **This is the one item I cannot decide.** Three options are laid out in the question accompanying this document.
+### R-3 — Business-model conflict — **RESOLVED 2026-09-10**
+
+**Decision: keep the approved architecture and adapt the UI.**
+
+The project → contract → milestone → escrow → payout spine stands. No `Session`/`Booking` model is
+added, `A-01` (the unified Project spine) is preserved intact, and the 67 CHECK constraints from STEP 3
+continue to hold. The Figma's booking-led presentation is adapted rather than the domain being bent to
+match it.
+
+Concretely, this settles three UI questions:
+
+| Figma element | Resolution |
+| --- | --- |
+| `₹800/session` on expert cards | Render **"from ₹X"** (cheapest `ServicePackage.priceMinor`) or **"₹X/hr"** (`ExpertProfile.hourlyRateMinor`), via the shared `MoneyAmount` component (`A-04`) |
+| "Bookings" nav item | Replaced by the role-segmented sidebar from STEP 01 §6, with the role switcher (`A-02`) |
+| "ready to book" / "Book now" copy | Becomes hire/engage language consistent with the contract flow |
+
+Trade-off accepted: the booking-led feel is softened into a hire-led one. Visual language, layout,
+card anatomy, filters and grid are all preserved — only the commercial vocabulary changes.
 
 ### R-4 — Treat the Figma as a design *language*, not a screen inventory
 Extract tokens, the component visual language, the card/filter/grid patterns and the navigation aesthetic. Then design our own screens from STEP 01's route map using that language. Cloning the six frames would produce a marketing site, not the product.
@@ -275,7 +292,7 @@ The 15 in Figma are a starting point. Adopt shadcn/ui for the missing primitives
 
 ### R-7 — Two small schema questions raised by the design
 - **Add `city` / `country` to `ExpertProfile`** — the card shows location, we have only `timezone`. Small migration, real discovery value. **Recommend yes.**
-- **Session-based pricing** — only if R-3 resolves toward booking. Do not add speculatively.
+- ~~Session-based pricing~~ — **closed by R-3.** The domain is unchanged; the UI adapts. No migration.
 
 ### R-8 — Designate a canonical "Register Your Project" frame
 Frames 4 and 5 are duplicates; frame 5's name is corrupted. Confirm which is current and archive the other.
@@ -292,6 +309,17 @@ If R-1 and R-3 resolve, the natural first slice is:
 4. **Browse Experts** (`/experts`) wired to real `ExpertProfile` data, with the domain corrections from §L
 5. **Expert profile detail** (`/experts/[slug]`) — needs design
 
-Steps 1–2 are safe to start the moment token access is restored. Steps 4–5 depend on R-3.
+**Dependency status after R-3:**
+
+| Step | Blocked by |
+| --- | --- |
+| 1. Token layer | **R-1** — exact values still unavailable (Figma MCP quota re-checked 2026-09-10, still exhausted) |
+| 2. Component foundation | R-1 for final colours; structure can proceed |
+| 3. Auth screens | R-1 only |
+| 4. Browse Experts | **Unblocked by R-3.** Needs R-7 (location field) confirmed |
+| 5. Expert profile detail | Needs a design — not in Figma |
+
+R-3 is resolved, so the shape of Phase 5 is now settled. **R-1 remains the hard blocker**, and mobile
+designs (M-07) remain absent.
 
 **No UI code has been written.** Awaiting architecture review.

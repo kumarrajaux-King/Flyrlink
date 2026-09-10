@@ -53,3 +53,4 @@ src/generated/
 next-env.d.ts
 *.tsbuildinfo
 .tmp-fix/
+.tmp-doc/
