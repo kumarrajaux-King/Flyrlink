@@ -594,20 +594,25 @@ model User {
   timezone      String     @default("UTC")
   locale        String     @default("en")
 
-  mfaEnabled       Boolean   @default(false)
-  mfaSecret        String?
-  lastLoginAt      DateTime?
-  failedLoginCount Int       @default(0)
-  lockedUntil      DateTime?
+  mfaEnabled          Boolean   @default(false)
+  mfaSecret           String?
+  mfaEnrolledAt       DateTime?
+  /// Highest TOTP time step already consumed. Rejects replay of an intercepted
+  /// code inside its 30-second validity window.
+  mfaLastUsedTimeStep Int?
+  lastLoginAt         DateTime?
+  failedLoginCount    Int       @default(0)
+  lockedUntil         DateTime?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  roles    UserRole[]
-  sessions Session[]
-  accounts Account[]
-  tokens   VerificationToken[]
+  roles          UserRole[]
+  sessions       Session[]
+  accounts       Account[]
+  tokens         VerificationToken[]
+  mfaBackupCodes MfaBackupCode[]
 
   customerProfile CustomerProfile?
   expertProfile   ExpertProfile?
@@ -2546,4 +2551,22 @@ model AuditLog {
   @@index([severity, createdAt])
   @@index([requestId])
   @@map("audit_logs")
+}
+
+/// Single-use MFA recovery codes. Only the SHA-256 hash is stored, and a
+/// redeemed code is marked used rather than deleted so the redemption is
+/// auditable.
+model MfaBackupCode {
+  id     String @id @default(uuid(7)) @db.Uuid
+  userId String @db.Uuid
+
+  codeHash String    @unique
+  usedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+  @@map("mfa_backup_codes")
 }

@@ -25,6 +25,7 @@
   "include": [
     "domain/**/*.ts",
     "lib/**/*.ts",
+    "services/**/*.ts",
     "prisma/**/*.ts",
     "tests/**/*.ts",
     "prisma.config.ts"
