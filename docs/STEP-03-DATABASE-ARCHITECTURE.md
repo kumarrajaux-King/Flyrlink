@@ -365,6 +365,30 @@ What remains:
 | Background job table | Deferred | `T-05` is approved architecture, but jobs are a Phase 7 concern. |
 | Seed repeatability via TRUNCATE | Accepted | The seed truncates before inserting, which is what makes it repeatable. It is guarded to `development`/`test` and refuses to run otherwise (verified). |
 
+
+### 14.1 Dependency advisory: `mysql2` and `deepmerge-ts` (accepted, tracked)
+
+`npm audit` reports **4 high-severity advisories**, all inside `prisma@7.10.0`'s own dependency tree:
+
+| Package | Advisory | Reaches our code? |
+| --- | --- | --- |
+| `mysql2@3.15.3` | Auth-plugin downgrade to `mysql_clear_password` can leak plaintext credentials | **No.** Bundled by the Prisma CLI for MySQL support. This project uses PostgreSQL exclusively, so the MySQL connector is never loaded. |
+| `deepmerge-ts@7.1.5` via `@prisma/config@7.10.0` | Stack exhaustion when merging recursive object graphs | **No.** Runs at CLI time, merging our own `prisma.config.ts`. The input is trusted and not user-supplied. |
+
+**Why this is not fixed by upgrading.** 7.10.0 is the newest stable 7.x — there is no patch release.
+`npm audit fix --force` proposes `prisma@6.19.3`, a **major downgrade** that contradicts approved
+decision D-06 and the stated preference for stable, current versions. It was not applied.
+
+**Why moving the CLI to `devDependencies` does not clear it.** The Prisma CLI was moved from
+`dependencies` to `devDependencies`, which is correct practice — the CLI is build-time tooling and is
+not shipped. But `@prisma/client` declares `prisma` as an *optional peerDependency*, so npm keeps it
+resolved in the non-dev tree and `npm audit --omit=dev` still reports the same 4 advisories. The move
+is retained for correctness; it is honestly not a mitigation.
+
+**Decision:** accept and track. Revisit when Prisma ships a 7.x patch that bumps `mysql2` above
+3.23.0 and `deepmerge-ts` to >= 8. Neither advisory is reachable from any code path this application
+executes, and no production runtime dependency is affected.
+
 ## 15. Open decisions
 
 | ID | Decision | Default taken |

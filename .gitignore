@@ -48,3 +48,4 @@ prisma/*.db-journal
 src/generated/
 .pglite/
 .tmp-verify/
+.tmp-doc/
