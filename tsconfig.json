@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023"],
+    "lib": [
+      "ES2023"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
@@ -16,8 +18,19 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["domain/**/*.ts", "prisma/**/*.ts", "tests/**/*.ts", "prisma.config.ts"],
-  "exclude": ["node_modules", "src/generated"]
+  "include": [
+    "domain/**/*.ts",
+    "lib/**/*.ts",
+    "prisma/**/*.ts",
+    "tests/**/*.ts",
+    "prisma.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/generated"
+  ]
 }

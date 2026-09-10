@@ -17,6 +17,8 @@ import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { ROLE_NAMES, ROLE_PERMISSIONS } from '../../lib/authz/roles.js';
+
 const MIGRATIONS_DIR = join(process.cwd(), 'prisma', 'migrations');
 
 function loadInitialMigration(): string {
@@ -394,6 +396,33 @@ describe('financial guarantees enforced by the schema', () => {
        WHERE table_schema = 'public' AND table_name = 'transactions' AND column_name = 'reversalOfId'`,
     );
     expect(reversal).toHaveLength(1);
+  });
+});
+
+describe('application code stays in sync with the database', () => {
+  it('RoleName union matches the RoleName enum exactly', async () => {
+    // lib/authz/roles.ts declares the roles the application reasons about.
+    // If someone adds a role to the schema and forgets the permission matrix
+    // (or vice versa), this fails instead of shipping a role with no rules.
+    const dbRoles = await rows<{ label: string }>(
+      `SELECT e.enumlabel AS label
+       FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+       WHERE t.typname = 'RoleName'
+       ORDER BY e.enumsortorder`,
+    );
+    expect(dbRoles.map((r) => r.label)).toEqual([...ROLE_NAMES]);
+  });
+
+  it('every database role has a non-empty permission set', async () => {
+    const dbRoles = await rows<{ label: string }>(
+      `SELECT e.enumlabel AS label FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+       WHERE t.typname = 'RoleName'`,
+    );
+    for (const { label } of dbRoles) {
+      const permissions = ROLE_PERMISSIONS[label as (typeof ROLE_NAMES)[number]];
+      expect(permissions, `role ${label} has no permission set`).toBeDefined();
+      expect(permissions.length, `role ${label} has an empty permission set`).toBeGreaterThan(0);
+    }
   });
 });
 
