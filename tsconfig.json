@@ -2,7 +2,9 @@
   "compilerOptions": {
     "target": "ES2023",
     "lib": [
-      "ES2023"
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
     ],
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -20,15 +22,29 @@
     "verbatimModuleSyntax": true,
     "types": [
       "node"
+    ],
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
     ]
   },
   "include": [
     "domain/**/*.ts",
     "lib/**/*.ts",
     "services/**/*.ts",
+    "app/**/*.ts",
+    "app/**/*.tsx",
     "prisma/**/*.ts",
     "tests/**/*.ts",
-    "prisma.config.ts"
+    "prisma.config.ts",
+    "middleware.ts",
+    "vitest.config.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

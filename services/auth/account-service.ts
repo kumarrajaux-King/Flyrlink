@@ -14,8 +14,8 @@
  *   audited. There is no code path here that can grant one.
  */
 
-import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit.js';
-import { hashPassword, verifyPassword } from '../../lib/auth/password.js';
+import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit';
+import { hashPassword, verifyPassword } from '../../lib/auth/password';
 import {
   EMAIL_VERIFICATION_TTL_MS,
   PASSWORD_RESET_TTL_MS,
@@ -23,9 +23,9 @@ import {
   hashToken,
   isExpired,
   issueToken,
-} from '../../lib/auth/tokens.js';
-import { type Db, prisma } from '../../lib/db/client.js';
-import { revokeAllSessions } from './session-service.js';
+} from '../../lib/auth/tokens';
+import { type Db, prisma } from '../../lib/db/client';
+import { revokeAllSessions } from './session-service';
 
 export type SelfServiceAccountType = 'CUSTOMER' | 'EXPERT';
 

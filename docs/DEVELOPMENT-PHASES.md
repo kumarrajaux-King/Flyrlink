@@ -7,8 +7,8 @@ Maintained continuously. Updated at the end of every phase.
 | 1 | UX + Product Architecture | ✅ **Signed off** (2026-09-10) | `STEP-01-UX-PRODUCT-ARCHITECTURE.md` |
 | 2 | Technical Architecture | ✅ **Signed off** (2026-09-10) | `STEP-02-TECHNICAL-ARCHITECTURE.md` |
 | 3 | Database Architecture | ✅ **Complete — migration applied, seed run; awaiting sign-off** | `STEP-03-DATABASE-ARCHITECTURE.md`, `prisma/schema.prisma`, 2 migrations, seed, `domain/money/`, `docker-compose.yml` |
-| 4 | Authentication + RBAC | ⏭️ **Next — not started** | |
-| 5 | Expert Marketplace | ⬜ Not started — **blocked by `M-01` (Figma)** | |
+| 4 | Authentication + RBAC | ✅ **Backend complete — awaiting sign-off; UI blocked by `M-01`** | `STEP-04-AUTHENTICATION-RBAC.md`, `lib/auth*`, `services/auth/`, 13 API routes |
+| 5 | Expert Marketplace | ⏭️ **Next — blocked by `M-01` (Figma)** | |
 | 6 | Customer Project Marketplace | ⬜ Not started — **blocked by `M-01`** | |
 | 7 | AI Agentic System | ⬜ Not started | `AI-AGENT-ARCHITECTURE.md` |
 | 8 | Admin Control Plane | ⬜ Not started | |
@@ -77,7 +77,37 @@ All STEP 3 decisions D-01 through D-06 are approved. `prisma migrate dev` is unu
 PGlite server because it provisions a shadow database; `migrate deploy` was used instead, which is
 non-destructive and records migrations identically.
 
+### 2026-09-10 — STEP 4 backend delivered
+
+Authentication and RBAC backend complete: 78 permissions across 7 roles, first-party session
+layer, TOTP MFA with backup codes, 13 API routes, audit logging. 198 tests passing.
+
+**T-02 revised.** Auth.js v5 has no stable release (`next-auth` latest is 4.24.15; v5 is
+`5.0.0-beta.32`, `@auth/core` is pre-1.0). Putting a beta in the auth core contradicted the
+stable-over-pre-release preference from D-06, so the conflict was reported and first-party
+sessions on the STEP 3 schema were approved instead.
+
+**Two defects caught by the gates, not by inspection:**
+- `next build` failed while all tests passed — Next's bundler does not resolve `./foo.js` to
+  `./foo.ts` the way vitest and `moduleResolution: bundler` do. Relative imports are now
+  extensionless across 33 files, and `next build` is part of the gate from here on.
+- MFA enrollment consumed the current TOTP step, so the immediately-following mandatory
+  re-login rejected the code the user's authenticator was still showing.
+
+**Blocked:** the authentication UI (login, signup, MFA screens) needs Figma (`M-01`). The API
+those screens will call is complete and tested.
+
 ## Open decisions requiring sign-off
+
+### STEP 04 — authentication decisions
+| ID | Decision |
+| --- | --- |
+| T-02 (revised) | First-party sessions instead of Auth.js v5 — **approved** |
+| A-08 | MFA not required for `SUPPORT` / `VERIFICATION_MANAGER` (follows STEP 02 §13 exactly) |
+| A-09 | Enumeration-safe registration rather than "email already registered" |
+| A-10 | Unverified accounts authenticate but are refused by `authorize` as `ACCOUNT_INACTIVE` |
+| A-11 | Session TTL 7 days; password-reset token 30 minutes |
+| A-12 | Lockout after 5 failed attempts for 15 minutes |
 
 ### STEP 03 — database decisions (all APPROVED 2026-09-10)
 | ID | Decision |

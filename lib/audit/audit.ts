@@ -10,8 +10,8 @@
  * its audit trail from diverging when something fails midway.
  */
 
-import type { Prisma } from '../../src/generated/prisma/client.js';
-import type { Db } from '../db/client.js';
+import type { Prisma } from '../../src/generated/prisma/client';
+import type { Db } from '../db/client';
 
 /**
  * Audit action names. A closed list rather than free-form strings, so the admin

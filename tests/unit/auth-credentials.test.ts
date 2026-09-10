@@ -8,7 +8,7 @@ import {
   hashPassword,
   needsRehash,
   verifyPassword,
-} from '../../lib/auth/password.js';
+} from '../../lib/auth/password';
 import {
   BACKUP_CODE_COUNT,
   PASSWORD_RESET_TTL_MS,
@@ -21,14 +21,14 @@ import {
   issueToken,
   normalizeBackupCode,
   tokensMatch,
-} from '../../lib/auth/tokens.js';
+} from '../../lib/auth/tokens';
 import {
   TOTP_PERIOD_SECONDS,
   buildTotpUri,
   generateTotpCode,
   generateTotpSecret,
   verifyTotpCode,
-} from '../../lib/auth/totp.js';
+} from '../../lib/auth/totp';
 
 const VALID_PASSWORD = 'correct horse battery staple';
 

@@ -7,7 +7,7 @@ import {
   authorize,
   can,
   isParticipant,
-} from '../../lib/authz/authorize.js';
+} from '../../lib/authz/authorize';
 import {
   MFA_REQUIRED_ROLES,
   PERMISSIONS,
@@ -19,7 +19,7 @@ import {
   permissionsForRoles,
   requiresMfa,
   scopeOf,
-} from '../../lib/authz/roles.js';
+} from '../../lib/authz/roles';
 
 const CUSTOMER_ID = '018f4f4e-0000-7000-8000-00000000c001';
 const EXPERT_ID = '018f4f4e-0000-7000-8000-00000000e001';

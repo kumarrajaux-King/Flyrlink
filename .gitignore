@@ -49,3 +49,7 @@ src/generated/
 .pglite/
 .tmp-verify/
 .tmp-doc/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+.tmp-fix/

@@ -2,7 +2,7 @@
 
 A production-grade marketplace where the client describes an **outcome**, and the platform understands the requirement, plans the project, finds the right expert or team, coordinates execution, monitors risk, and manages the commercial workflow.
 
-> **Status: Phase 3 complete.** Phases 1-3 are signed off or awaiting final sign-off. The database schema (59 models, 60 tables) is implemented, migrated and seeded. Phase 4 (Authentication + RBAC) is next. See [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md).
+> **Status: Phase 4 backend complete.** The database (59 models) is migrated and seeded, and authentication + RBAC is implemented and tested (198 tests). The authentication **UI** is blocked pending Figma. See [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md).
 
 ## Documentation
 
@@ -14,6 +14,7 @@ Read in this order:
 | [`docs/STEP-01-UX-PRODUCT-ARCHITECTURE.md`](docs/STEP-01-UX-PRODUCT-ARCHITECTURE.md) | Roles, flows, route map, screen states, design system strategy |
 | [`docs/STEP-02-TECHNICAL-ARCHITECTURE.md`](docs/STEP-02-TECHNICAL-ARCHITECTURE.md) | Stack, layering, APIs, state machines, AI agents, payments, security |
 | [`docs/STEP-03-DATABASE-ARCHITECTURE.md`](docs/STEP-03-DATABASE-ARCHITECTURE.md) | Schema, constraints, money architecture, verification results |
+| [`docs/STEP-04-AUTHENTICATION-RBAC.md`](docs/STEP-04-AUTHENTICATION-RBAC.md) | Sessions, RBAC, MFA, API surface, security reasoning |
 | [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md) | Phase status, open decisions, blocking inputs |
 
 ## The three experiences
@@ -38,9 +39,11 @@ No Docker? `npm run db:dev-server` runs a Docker-less PostgreSQL for development
 
 ## Stack
 
-**Installed and in use:** PostgreSQL · Prisma 7.10.0 · TypeScript 5.9.3 · Vitest · ESLint
+**Installed and in use:** Next.js 16 (App Router) · React 19 · TypeScript 5.9.3 · PostgreSQL · Prisma 7.10.0 · Zod 4 · Argon2id · otplib · Vitest · ESLint
 
-**Planned for later phases:** Next.js (App Router) · React · Tailwind CSS · shadcn/ui · Radix · Zod · Auth.js v5 · Anthropic SDK (behind a provider adapter) · Playwright
+**Planned for later phases:** Tailwind CSS · shadcn/ui · Radix · Anthropic SDK (behind a provider adapter) · Playwright
+
+Sessions are first-party rather than Auth.js: v5 has no stable release, and a beta dependency in the auth core was not acceptable. See [STEP-04 §3](docs/STEP-04-AUTHENTICATION-RBAC.md).
 
 Dependencies are added phase by phase, each justified in that phase's report.
 

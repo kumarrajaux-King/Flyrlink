@@ -16,13 +16,13 @@
  *   redemption stays auditable.
  */
 
-import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit.js';
-import { verifyPassword } from '../../lib/auth/password.js';
-import { generateBackupCodes, hashToken, normalizeBackupCode } from '../../lib/auth/tokens.js';
-import { buildTotpUri, generateTotpSecret, verifyTotpCode } from '../../lib/auth/totp.js';
-import { MFA_REQUIRED_ROLES, type RoleName } from '../../lib/authz/roles.js';
-import { type Db, prisma } from '../../lib/db/client.js';
-import { markSessionMfaSatisfied, revokeAllSessions } from './session-service.js';
+import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit';
+import { verifyPassword } from '../../lib/auth/password';
+import { generateBackupCodes, hashToken, normalizeBackupCode } from '../../lib/auth/tokens';
+import { buildTotpUri, generateTotpSecret, verifyTotpCode } from '../../lib/auth/totp';
+import { MFA_REQUIRED_ROLES, type RoleName } from '../../lib/authz/roles';
+import { type Db, prisma } from '../../lib/db/client';
+import { markSessionMfaSatisfied, revokeAllSessions } from './session-service';
 
 export interface MfaEnrollmentStart {
   readonly secret: string;

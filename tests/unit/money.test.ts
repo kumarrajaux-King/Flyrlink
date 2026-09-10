@@ -19,7 +19,7 @@ import {
   sum,
   toDecimalString,
   zero,
-} from '../../domain/money/money.js';
+} from '../../domain/money/money';
 
 describe('Money — construction and validation', () => {
   it('constructs from bigint and number minor units', () => {

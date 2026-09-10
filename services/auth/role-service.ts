@@ -11,11 +11,11 @@
  * their privileges until their session happened to expire.
  */
 
-import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit.js';
-import { type Actor, assertAuthorized } from '../../lib/authz/authorize.js';
-import { type RoleName } from '../../lib/authz/roles.js';
-import { type Db, prisma } from '../../lib/db/client.js';
-import { revokeAllSessions } from './session-service.js';
+import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit';
+import { type Actor, assertAuthorized } from '../../lib/authz/authorize';
+import { type RoleName } from '../../lib/authz/roles';
+import { type Db, prisma } from '../../lib/db/client';
+import { revokeAllSessions } from './session-service';
 
 export type AssignRoleOutcome = 'ASSIGNED' | 'ALREADY_ASSIGNED' | 'USER_NOT_FOUND';
 

@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { ROLE_NAMES, ROLE_PERMISSIONS } from '../../lib/authz/roles.js';
+import { ROLE_NAMES, ROLE_PERMISSIONS } from '../../lib/authz/roles';
 
 const MIGRATIONS_DIR = join(process.cwd(), 'prisma', 'migrations');
 

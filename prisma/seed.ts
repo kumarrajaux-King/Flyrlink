@@ -19,8 +19,8 @@ import { existsSync } from 'node:fs';
 
 import { PrismaPg } from '@prisma/adapter-pg';
 
-import { applyBasisPoints, money, subtract } from '../domain/money/money.js';
-import { PrismaClient } from '../src/generated/prisma/client.js';
+import { applyBasisPoints, money, subtract } from '../domain/money/money';
+import { PrismaClient } from '../src/generated/prisma/client';
 
 if (existsSync('.env')) {
   process.loadEnvFile('.env');

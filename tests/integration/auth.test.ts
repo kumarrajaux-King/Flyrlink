@@ -12,24 +12,24 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { hashToken } from '../../lib/auth/tokens.js';
-import { generateTotpCode } from '../../lib/auth/totp.js';
-import { authorize } from '../../lib/authz/authorize.js';
-import { ROLE_NAMES } from '../../lib/authz/roles.js';
-import { prisma } from '../../lib/db/client.js';
+import { hashToken } from '../../lib/auth/tokens';
+import { generateTotpCode } from '../../lib/auth/totp';
+import { authorize } from '../../lib/authz/authorize';
+import { ROLE_NAMES } from '../../lib/authz/roles';
+import { prisma } from '../../lib/db/client';
 import {
   changePassword,
   registerUser,
   requestPasswordReset,
   resetPassword,
   verifyEmail,
-} from '../../services/auth/account-service.js';
+} from '../../services/auth/account-service';
 import {
   MAX_FAILED_LOGIN_ATTEMPTS,
   clearLockout,
   login,
   logout,
-} from '../../services/auth/login-service.js';
+} from '../../services/auth/login-service';
 import {
   beginMfaEnrollment,
   confirmMfaEnrollment,
@@ -37,9 +37,9 @@ import {
   disableMfa,
   regenerateBackupCodes,
   verifyMfaChallenge,
-} from '../../services/auth/mfa-service.js';
-import { assignRole, revokeRole, rolesForUser } from '../../services/auth/role-service.js';
-import { resolveSession } from '../../services/auth/session-service.js';
+} from '../../services/auth/mfa-service';
+import { assignRole, revokeRole, rolesForUser } from '../../services/auth/role-service';
+import { resolveSession } from '../../services/auth/session-service';
 
 /**
  * Resolved at module load, not in `beforeAll`: `describe.skipIf` is evaluated

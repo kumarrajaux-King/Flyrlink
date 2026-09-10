@@ -18,7 +18,7 @@ import {
   SUPER_ADMIN_ONLY_PERMISSIONS,
   permissionsForRoles,
   scopeOf,
-} from './roles.js';
+} from './roles';
 
 /** The authenticated caller. Assembled server-side from the session — never from client input. */
 export interface Actor {

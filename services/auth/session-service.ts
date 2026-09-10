@@ -13,11 +13,11 @@
  *     so a stolen session cannot outlive the credential it was minted from.
  */
 
-import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit.js';
-import { SESSION_TTL_MS, expiresAt, hashToken, issueToken } from '../../lib/auth/tokens.js';
-import { type Actor } from '../../lib/authz/authorize.js';
-import { type RoleName } from '../../lib/authz/roles.js';
-import { type Db, prisma } from '../../lib/db/client.js';
+import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit';
+import { SESSION_TTL_MS, expiresAt, hashToken, issueToken } from '../../lib/auth/tokens';
+import { type Actor } from '../../lib/authz/authorize';
+import { type RoleName } from '../../lib/authz/roles';
+import { type Db, prisma } from '../../lib/db/client';
 
 export interface CreatedSession {
   /** Give this to the client in an httpOnly cookie. It is never stored raw. */

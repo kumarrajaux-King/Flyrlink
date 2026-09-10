@@ -11,7 +11,7 @@ import {
   toFieldErrors,
   verifyEmailSchema,
   verifyMfaSchema,
-} from '../../lib/validation/auth.js';
+} from '../../lib/validation/auth';
 
 const validRegistration = {
   email: 'Person@Example.TEST',

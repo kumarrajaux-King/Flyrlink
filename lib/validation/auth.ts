@@ -11,8 +11,8 @@
 
 import { z } from 'zod';
 
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../auth/password.js';
-import { ROLE_NAMES } from '../authz/roles.js';
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../auth/password';
+import { ROLE_NAMES } from '../authz/roles';
 
 /** Normalise before validating: emails are compared case-insensitively. */
 const email = z

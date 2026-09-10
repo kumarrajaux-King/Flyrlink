@@ -18,10 +18,10 @@
  *   cannot tell a wrong password from an unknown address.
  */
 
-import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit.js';
-import { needsRehash, hashPassword, verifyPassword } from '../../lib/auth/password.js';
-import { type Db, prisma } from '../../lib/db/client.js';
-import { type CreatedSession, createSession, revokeSession } from './session-service.js';
+import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit';
+import { needsRehash, hashPassword, verifyPassword } from '../../lib/auth/password';
+import { type Db, prisma } from '../../lib/db/client';
+import { type CreatedSession, createSession, revokeSession } from './session-service';
 
 /** Failed attempts before the account is temporarily locked. */
 export const MAX_FAILED_LOGIN_ATTEMPTS = 5;
