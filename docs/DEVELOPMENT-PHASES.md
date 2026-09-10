@@ -97,6 +97,27 @@ sessions on the STEP 3 schema were approved instead.
 **Blocked:** the authentication UI (login, signup, MFA screens) needs Figma (`M-01`). The API
 those screens will call is complete and tested.
 
+### 2026-09-10 — Figma supplied and mapped
+
+The Figma file was supplied and inspected. The **Figma MCP connector could not be used** — the account is
+on Starter tier and the MCP tool-call quota is exhausted — so the file was read visually through an
+authenticated browser session. Exact hex values were therefore not captured.
+
+Mapping delivered in `STEP-05-FIGMA-ARCHITECTURE-MAPPING.md`. Headline findings:
+
+- The file contains **3 pages / 6 desktop frames**, five of which are marketing pages. Only
+  **Browse Expert** is an authenticated product surface.
+- It covers roughly **10–15%** of the approved product surface. Contracts, milestones, payments,
+  admin and the entire AI layer have **no design at all**.
+- **All frames are 1440px — there are no mobile or tablet designs**, which conflicts with STEP 01 §13.
+- Colour styles are **Figma auto-generated names with five duplicates** ("Athens Gray" ×5), not semantic
+  tokens. The type and spacing scales, by contrast, are complete and directly adoptable.
+- **The Figma models a session-booking marketplace** (₹/session, "Bookings" nav) while the approved
+  architecture implements project → contract → milestone → escrow → payout. This is a business-model
+  conflict, not a styling difference, and needs a decision before Phase 5/6.
+
+No UI code was written.
+
 ## Open decisions requiring sign-off
 
 ### STEP 04 — authentication decisions
@@ -150,7 +171,10 @@ those screens will call is complete and tested.
 
 | # | Missing | Blocks |
 | --- | --- | --- |
-| M-01 | **Figma file/URL** | Phases 5, 6, 8 — all UI implementation |
+| M-01 | ~~Figma file/URL~~ — **supplied 2026-09-10**; superseded by M-06/M-07 | — |
+| M-06 | **Figma MCP access** (Starter tier quota exhausted) — blocks exact token extraction | Phase 5 token layer |
+| M-07 | **Mobile designs** — Figma is desktop-only (1440px) | Phase 5+ responsive work |
+| M-08 | **Business-model decision** — Figma models session booking, architecture implements contracts/milestones | Phases 5, 6 |
 | M-02 | Brand identity assets | Design tokens |
 | M-03 | Commission model (rates, tiers) | Phase 10 |
 | M-04 | Launch geography + legal entity | Payment provider selection, currency, tax |
