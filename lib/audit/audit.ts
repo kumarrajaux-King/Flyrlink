@@ -42,6 +42,14 @@ export const AUDIT_ACTIONS = {
   SESSION_CREATED: 'session.created',
   SESSION_REVOKED: 'session.revoked',
   SESSIONS_REVOKED_ALL: 'session.revoked_all',
+  // AI agentic system
+  AI_RUN_STARTED: 'ai.run.started',
+  AI_RUN_COMPLETED: 'ai.run.completed',
+  AI_ACTION_PROPOSED: 'ai.action.proposed',
+  AI_ACTION_APPROVED: 'ai.action.approved',
+  AI_ACTION_REJECTED: 'ai.action.rejected',
+  AI_ACTION_EXECUTED: 'ai.action.executed',
+  AI_TOOL_DENIED: 'ai.tool.denied',
   // Authorization
   ROLE_ASSIGNED: 'user.role.assigned',
   ROLE_REVOKED: 'user.role.revoked',

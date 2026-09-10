@@ -10,7 +10,7 @@ Maintained continuously. Updated at the end of every phase.
 | 4 | Authentication + RBAC | ✅ **Backend complete — awaiting sign-off; UI blocked by `M-01`** | `STEP-04-AUTHENTICATION-RBAC.md`, `lib/auth*`, `services/auth/`, 13 API routes |
 | 5 | Expert Marketplace | ⏭️ **Next — blocked by `M-01` (Figma)** | |
 | 6 | Customer Project Marketplace | ⬜ Not started — **blocked by `M-01`** | |
-| 7 | AI Agentic System | ⬜ Not started | `AI-AGENT-ARCHITECTURE.md` |
+| 7 | AI Agentic System | ✅ **Implemented — awaiting review** | `AI-AGENT-ARCHITECTURE.md`, `ai/`, `services/ai/`, 7 API routes |
 | 8 | Admin Control Plane | ⬜ Not started | |
 | 9 | Messaging + Collaboration | ⬜ Not started | |
 | 10 | Payments, Transactions, Commission, Refunds, Payouts | ⬜ Not started — **blocked by `M-03`, `M-04`** | `PAYMENT-ARCHITECTURE.md` |
@@ -129,6 +129,23 @@ vocabulary changes.
 **Still open:** R-1 (Figma MCP quota re-checked and still exhausted — exact hex values unavailable),
 R-7 (add `city`/`country` to `ExpertProfile`), M-07 (no mobile designs), and approval of the mapping
 itself plus authorization to begin Phase 5.
+
+### 2026-09-10 — Phase 7 implemented
+
+13 agents, 14 controlled tools, policy engine, human-in-the-loop approval, provider abstraction
+(Anthropic + OpenAI + Fake), PII redaction, cost tracking and admin observability. 279 tests passing.
+
+**Schema impact: one enum value** (`AiAgentKey += REQUIREMENTS_ANALYST`) plus its migration. No job
+table was added — `AiRun.status = QUEUED` already is a durable queue.
+
+**The safety rule is structural.** The forbidden capabilities are not high-risk tools behind a gate;
+they have no tool at all. Registration rejects any name implying one, the policy engine re-checks
+before risk tier, STEP 3's CHECK constraints refuse an unapproved HIGH/CRITICAL execution record, and
+a standing test asserts no registered tool matches a forbidden pattern.
+
+**Two defects found by the tests:** `createAssignmentDraft` was registered but allow-listed to no
+agent (silently denied by policy) — fixed and covered by a new orphaned-tool test; and a Prisma JSON
+typing boundary, fixed once at the storage helper.
 
 ## Open decisions requiring sign-off
 

@@ -44,7 +44,8 @@
     "middleware.ts",
     "vitest.config.ts",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    "ai/**/*.ts"
   ],
   "exclude": [
     "node_modules",
