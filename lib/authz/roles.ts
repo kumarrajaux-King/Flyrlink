@@ -52,6 +52,9 @@ export const PERMISSIONS = [
   'application:create:own',
   'application:read:own',
   'application:read:any',
+  // The invited expert accepts or declines an assignment (project
+  // ASSIGNMENT_PENDING). Required by the approved lifecycle; added in Phase 6.
+  'assignment:respond:own',
   // Customers
   'customer:read:own',
   'customer:read:any',
@@ -157,6 +160,7 @@ const EXPERT_PERMISSIONS: readonly Permission[] = [
   'service:read:any',
   'application:create:own',
   'application:read:own',
+  'assignment:respond:own',
   'contract:read:own',
   'milestone:read:own',
   'milestone:submit:own',

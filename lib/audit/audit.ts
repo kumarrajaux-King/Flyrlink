@@ -50,6 +50,12 @@ export const AUDIT_ACTIONS = {
   AI_ACTION_REJECTED: 'ai.action.rejected',
   AI_ACTION_EXECUTED: 'ai.action.executed',
   AI_TOOL_DENIED: 'ai.tool.denied',
+  // Lifecycle state machines (Phase 6)
+  PROJECT_TRANSITIONED: 'lifecycle.project.transitioned',
+  CONTRACT_TRANSITIONED: 'lifecycle.contract.transitioned',
+  MILESTONE_TRANSITIONED: 'lifecycle.milestone.transitioned',
+  PAYMENT_TRANSITIONED: 'lifecycle.payment.transitioned',
+  LIFECYCLE_TRANSITION_DENIED: 'lifecycle.transition.denied',
   // Authorization
   ROLE_ASSIGNED: 'user.role.assigned',
   ROLE_REVOKED: 'user.role.revoked',
