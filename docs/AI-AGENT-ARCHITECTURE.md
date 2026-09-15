@@ -71,7 +71,7 @@ resolve agent + version → redact input → persist AiRun (RUNNING)
 | 7 | Verification Assistant | `VERIFICATION` | MEDIUM | **getExpertProfile only** |
 | 8 | Contract Drafting | `CONTRACT` | HIGH | context, **createContractDraft (HIGH)**, createMilestoneDraft |
 | 9 | Project Execution | `EXECUTION` | LOW | context, milestoneStatus |
-| 10 | Risk Monitoring | `RISK` | MEDIUM | context, milestoneStatus, paymentStatus, sendNotification |
+| 10 | Risk Monitoring | `RISK` | MEDIUM | context, milestoneStatus, paymentStatus, sendNotification, **flagProjectAtRisk (MEDIUM, Phase 6 — v1.1.0)** |
 | 11 | Communication | `COMMUNICATION` | MEDIUM | context, sendNotification |
 | 12 | Payment Monitoring | `PAYMENT` | LOW | **read-only only** |
 | 13 | Support / Resolution | `SUPPORT_RESOLUTION` | LOW | context, milestoneStatus, paymentStatus |
@@ -80,7 +80,7 @@ resolve agent + version → redact input → persist AiRun (RUNNING)
 
 **Versioning.** Each definition pins a version, model, provider and prompt reference. `AiAgentVersion` stores a hash of the system prompt, and editing a prompt without bumping the version **throws** — otherwise historical runs would silently point at a prompt that never produced them.
 
-## 4. Tool registry (14)
+## 4. Tool registry (15)
 
 | Tool | Risk | Permission | Effect |
 | --- | --- | --- | --- |
@@ -96,6 +96,7 @@ resolve agent + version → redact input → persist AiRun (RUNNING)
 | `createRecommendation` | MEDIUM | `project:update:any` | `PROPOSED` |
 | `createMilestoneDraft` | MEDIUM | `project:update:any` | `DRAFT`, unfunded |
 | `sendNotification` | MEDIUM | `project:read:any` | in-app only |
+| `flagProjectAtRisk` | MEDIUM | `project:update:any` | Project `ACTIVE → AT_RISK` through the lifecycle service as an `AI_AGENT` actor — the only AI-reachable lifecycle event (Phase 6, `STEP-06-LIFECYCLE.md` §7) |
 | `createAssignmentDraft` | **HIGH** | `project:assign:any` | `DRAFT`, `isAiInitiated` |
 | `createContractDraft` | **HIGH** | `project:update:any` | unsigned version |
 

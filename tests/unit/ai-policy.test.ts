@@ -275,6 +275,43 @@ describe('agent registry integrity', () => {
   });
 });
 
+describe('lifecycle tool boundary (Phase 6)', () => {
+  it('allow-lists flagProjectAtRisk to the risk agent alone', () => {
+    const holders = AGENT_DEFINITIONS.filter((agent) => agent.allowedTools.includes('flagProjectAtRisk'));
+    expect(holders.map((agent) => agent.key)).toEqual(['RISK']);
+  });
+
+  it('registers it as a MEDIUM, :any-gated tool that implies no forbidden capability', () => {
+    expect(toolDescriptor('flagProjectAtRisk')).toEqual({
+      name: 'flagProjectAtRisk',
+      riskTier: 'MEDIUM',
+      requiredPermission: 'project:update:any',
+    });
+    expect(matchForbiddenCapability('flagProjectAtRisk')).toBeNull();
+  });
+
+  it('auto-allows it only for a human who holds project:update:any', () => {
+    const risk = AGENT_DEFINITIONS.find((agent) => agent.key === 'RISK')!;
+    const forActor = (acting: Actor) => ({
+      actor: acting,
+      agentAllowedTools: risk.allowedTools,
+      agentEnabled: true,
+      lookupTool: toolDescriptor,
+    });
+    expect(evaluate('flagProjectAtRisk', forActor(actor())).effect).toBe('ALLOW');
+    expect(evaluate('flagProjectAtRisk', forActor(actor({ roles: ['CUSTOMER'], mfaSatisfied: false })))).toMatchObject({
+      effect: 'DENY',
+      code: 'MISSING_PERMISSION',
+    });
+  });
+
+  it('registers no other tool that could move a lifecycle state', () => {
+    const lifecycleVerbs =
+      /(submit|cancel|approve|accept|decline|release|refund|terminate|suspend|resume|activate|fund|dispute|transition|capture|allocate|complete|close|flag)/i;
+    expect(toolNames().filter((name) => lifecycleVerbs.test(name))).toEqual(['flagProjectAtRisk']);
+  });
+});
+
 describe('tool registry integrity', () => {
   it('declares complete metadata for every tool', () => {
     for (const tool of listTools()) {

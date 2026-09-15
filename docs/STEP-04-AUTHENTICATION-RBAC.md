@@ -14,7 +14,7 @@
 
 | Metric | Value |
 | --- | --- |
-| Permissions defined | **78** (`domain:action:scope`) |
+| Permissions defined | **70** (`domain:action:scope`) — 71 after Phase 6. *Corrected: previously recorded here as 78; the code has always defined 70.* |
 | Roles wired to permissions | **7** |
 | Services | 5 (session, account, login, MFA, role) |
 | API routes | **13** |
@@ -104,10 +104,17 @@ matched step so it can be persisted for replay rejection.
 
 ## 6. RBAC model (`lib/authz/roles.ts`)
 
-78 permissions shaped `domain:action:scope`, where scope is `own` or `any`.
+70 permissions shaped `domain:action:scope`, where scope is `own` or `any`.
+*(This section originally said 78. `lib/authz/roles.ts` defined 70 at STEP 4; the
+discrepancy was found and corrected by a Phase 6 test that pins the count.)*
 Encoding scope **in the permission string** is what lets the authorization
 function decide mechanically whether an ownership check is required, instead of
 each call site remembering to perform one.
+
+> **Phase 6 role changes (approved).** `EXPERT` gained one new permission,
+> `assignment:respond:own` (answer an invitation), and one existing permission,
+> `contract:accept:own` (countersign the contract offered to them). The total is now
+> **71**. No other role changed. See `STEP-06-LIFECYCLE.md` §6.
 
 Deliberate limits on ADMIN:
 
@@ -310,7 +317,7 @@ so `npm test` passes on a machine without one.
 - [x] Opaque tokens stored as digests only
 - [x] TOTP MFA with backup codes, two-phase enrollment, replay rejection
 - [x] Session lifecycle with revocation on every privilege change
-- [x] 7 roles, 78 permissions, resource-level authorization that fails closed
+- [x] 7 roles, 70 permissions (corrected from 78; 71 after Phase 6), resource-level authorization that fails closed
 - [x] Privilege-escalation boundary enforced in the service layer
 - [x] Registration, verification, reset, change — all enumeration-safe
 - [x] 13 API routes with a consistent envelope and stable error codes

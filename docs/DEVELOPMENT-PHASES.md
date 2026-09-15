@@ -9,7 +9,7 @@ Maintained continuously. Updated at the end of every phase.
 | 3 | Database Architecture | ✅ **Complete — migration applied, seed run; awaiting sign-off** | `STEP-03-DATABASE-ARCHITECTURE.md`, `prisma/schema.prisma`, 2 migrations, seed, `domain/money/`, `docker-compose.yml` |
 | 4 | Authentication + RBAC | ✅ **Backend complete — awaiting sign-off; UI blocked by `M-01`** | `STEP-04-AUTHENTICATION-RBAC.md`, `lib/auth*`, `services/auth/`, 13 API routes |
 | 5 | Expert Marketplace | ⏭️ **Next — blocked by `M-01` (Figma)** | |
-| 6 | Customer Project Marketplace | ⬜ Not started — **blocked by `M-01`** | |
+| 6 | Customer Project Marketplace | ✅ **Lifecycle backend complete — awaiting architecture review.** UI not started (blocked by `M-06`/`M-07`) | `STEP-06-LIFECYCLE.md`, `domain/*/state-machine.ts`, `services/lifecycle/`, 4 API routes |
 | 7 | AI Agentic System | ✅ **Implemented — awaiting review** | `AI-AGENT-ARCHITECTURE.md`, `ai/`, `services/ai/`, 7 API routes |
 | 8 | Admin Control Plane | ⬜ Not started | |
 | 9 | Messaging + Collaboration | ⬜ Not started | |
@@ -79,7 +79,7 @@ non-destructive and records migrations identically.
 
 ### 2026-09-10 — STEP 4 backend delivered
 
-Authentication and RBAC backend complete: 78 permissions across 7 roles, first-party session
+Authentication and RBAC backend complete: 70 permissions *(recorded at the time as 78 — corrected in Phase 6)* across 7 roles, first-party session
 layer, TOTP MFA with backup codes, 13 API routes, audit logging. 198 tests passing.
 
 **T-02 revised.** Auth.js v5 has no stable release (`next-auth` latest is 4.24.15; v5 is
@@ -146,6 +146,32 @@ a standing test asserts no registered tool matches a forbidden pattern.
 **Two defects found by the tests:** `createAssignmentDraft` was registered but allow-listed to no
 agent (silently denied by policy) — fixed and covered by a new orphaned-tool test; and a Prisma JSON
 typing boundary, fixed once at the storage helper.
+
+### 2026-09-15 — Phase 6 lifecycle backend delivered
+
+The four STEP 02 §10 state machines (Project, Contract, Milestone and Payment) are pure transition tables
+in `domain/*/state-machine.ts`: 64 events and 139 valid event/source cells. One transition engine
+(`services/lifecycle/`) enforces them. In a single transaction it locks the row, checks the machine,
+authorizes the actor, answers repeats and stale views, applies the contextual rules, writes with
+compare-and-set, runs cascades and audits. Refusals are audited too. Four
+`POST /api/{projects,contracts,milestones,payments}/:id/transitions` routes act only as the session's human.
+
+**Approved at review:**
+- `contract:accept:own` granted to `EXPERT`.
+- Contract `NEGOTIATION → ACCEPTED`.
+- Project "any → CANCELLED | DISPUTED | SUSPENDED" implemented literally. Cancellations and disputes
+  are governed by payment-state, contract-state and dispute rules, not by narrowing the matrix.
+
+**RBAC:** one new permission (`assignment:respond:own`) and one existing permission newly granted
+(`contract:accept:own`), both to `EXPERT`. **Correction:** STEP 04 recorded 78 permissions, but the code
+has always defined 70. The count is now 71, and a test pins it.
+
+**AI:** exactly one lifecycle event is reachable by an agent, Project `MARK_AT_RISK`. It goes through
+the `flagProjectAtRisk` tool (MEDIUM) and the same lifecycle service; the RISK agent moves to v1.1.0.
+
+**No schema change.** 1,724 tests passing across 13 files, including an exhaustive matrix suite and
+database tests that apply every event. Typecheck, lint and `next build` are clean. The deviations from
+STEP 02 are listed in `STEP-06-LIFECYCLE.md` §11.
 
 ## Open decisions requiring sign-off
 

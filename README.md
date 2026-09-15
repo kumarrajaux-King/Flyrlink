@@ -2,7 +2,7 @@
 
 A production-grade marketplace where the client describes an **outcome**, and the platform understands the requirement, plans the project, finds the right expert or team, coordinates execution, monitors risk, and manages the commercial workflow.
 
-> **Status: Phase 4 backend complete.** The database (59 models) is migrated and seeded, and authentication + RBAC is implemented and tested (198 tests). The authentication **UI** is blocked pending Figma. See [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md).
+> **Status: backends for Phases 4, 6 (lifecycle) and 7 complete — awaiting review.** The database (59 models) is migrated and seeded. Authentication + RBAC, the AI agentic system, and the Project/Contract/Milestone/Payment state machines are implemented and tested (1,724 tests). No UI has been built; it is blocked on design inputs (`M-06`, `M-07`). See [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md).
 
 ## Documentation
 
@@ -15,6 +15,9 @@ Read in this order:
 | [`docs/STEP-02-TECHNICAL-ARCHITECTURE.md`](docs/STEP-02-TECHNICAL-ARCHITECTURE.md) | Stack, layering, APIs, state machines, AI agents, payments, security |
 | [`docs/STEP-03-DATABASE-ARCHITECTURE.md`](docs/STEP-03-DATABASE-ARCHITECTURE.md) | Schema, constraints, money architecture, verification results |
 | [`docs/STEP-04-AUTHENTICATION-RBAC.md`](docs/STEP-04-AUTHENTICATION-RBAC.md) | Sessions, RBAC, MFA, API surface, security reasoning |
+| [`docs/STEP-05-FIGMA-ARCHITECTURE-MAPPING.md`](docs/STEP-05-FIGMA-ARCHITECTURE-MAPPING.md) | Figma → architecture mapping (analysis only) |
+| [`docs/AI-AGENT-ARCHITECTURE.md`](docs/AI-AGENT-ARCHITECTURE.md) | Agents, tools, policy engine, human approval |
+| [`docs/STEP-06-LIFECYCLE.md`](docs/STEP-06-LIFECYCLE.md) | Project, contract, milestone and payment state machines; transition services |
 | [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md) | Phase status, open decisions, blocking inputs |
 
 ## The three experiences
@@ -39,9 +42,9 @@ No Docker? `npm run db:dev-server` runs a Docker-less PostgreSQL for development
 
 ## Stack
 
-**Installed and in use:** Next.js 16 (App Router) · React 19 · TypeScript 5.9.3 · PostgreSQL · Prisma 7.10.0 · Zod 4 · Argon2id · otplib · Vitest · ESLint
+**Installed and in use:** Next.js 16 (App Router) · React 19 · TypeScript 5.9.3 · PostgreSQL · Prisma 7.10.0 · Zod 4 · Argon2id · otplib · Anthropic and OpenAI SDKs (behind a provider adapter) · Vitest · ESLint
 
-**Planned for later phases:** Tailwind CSS · shadcn/ui · Radix · Anthropic SDK (behind a provider adapter) · Playwright
+**Planned for later phases:** Tailwind CSS · shadcn/ui · Radix · Playwright
 
 Sessions are first-party rather than Auth.js: v5 has no stable release, and a beta dependency in the auth core was not acceptable. See [STEP-04 §3](docs/STEP-04-AUTHENTICATION-RBAC.md).
 
@@ -62,6 +65,7 @@ The full list is in the [blueprint](docs/PRODUCT-BLUEPRINT.md#5-non-negotiables)
 
 | # | Missing | Blocks |
 | --- | --- | --- |
-| M-01 | **Figma file/URL** | All UI implementation (Phases 5, 6, 8). The UI will not be invented. |
+| M-06 | **Figma MCP access** (quota exhausted) | Exact design tokens for all UI. The UI will not be invented. |
+| M-07 | **Mobile designs** (Figma is desktop-only) | Responsive UI work |
 | M-03 | Commission model | Phase 10 |
 | M-04 | Launch geography + legal entity | Payment provider selection |
