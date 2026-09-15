@@ -39,20 +39,23 @@ export const PAYMENT_STATES = [
 
 export type PaymentState = (typeof PAYMENT_STATES)[number];
 
-export type PaymentEvent =
-  | 'INITIATE'
-  | 'MARK_PENDING'
-  | 'CONFIRM_SUCCEEDED'
-  | 'MARK_FAILED'
-  | 'CANCEL'
-  | 'ALLOCATE_FUNDS'
-  | 'REQUEST_RELEASE'
-  | 'RELEASE'
-  | 'REQUEST_REFUND'
-  | 'REJECT_REFUND'
-  | 'CONFIRM_REFUNDED'
-  | 'CONFIRM_PARTIAL_REFUND'
-  | 'RECORD_CHARGEBACK';
+export const PAYMENT_EVENTS = [
+  'INITIATE',
+  'MARK_PENDING',
+  'CONFIRM_SUCCEEDED',
+  'MARK_FAILED',
+  'CANCEL',
+  'ALLOCATE_FUNDS',
+  'REQUEST_RELEASE',
+  'RELEASE',
+  'REQUEST_REFUND',
+  'REJECT_REFUND',
+  'CONFIRM_REFUNDED',
+  'CONFIRM_PARTIAL_REFUND',
+  'RECORD_CHARGEBACK',
+] as const;
+
+export type PaymentEvent = (typeof PAYMENT_EVENTS)[number];
 
 export type PaymentContext = Record<string, never>;
 

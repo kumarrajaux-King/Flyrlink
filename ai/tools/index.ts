@@ -8,7 +8,9 @@
 
 import './talent-tools';
 import './project-tools';
+import './lifecycle-tools';
 
 export * from './registry';
 export * from './talent-tools';
 export * from './project-tools';
+export * from './lifecycle-tools';

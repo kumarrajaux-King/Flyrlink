@@ -1,15 +1,19 @@
 /**
  * Contract lifecycle — STEP 02 §10.2.
  *
- *   DRAFT → SENT ⇄ NEGOTIATION → ACCEPTED → FUNDED → ACTIVE → COMPLETED → CLOSED
+ *   DRAFT → SENT → NEGOTIATION → ACCEPTED → FUNDED → ACTIVE → COMPLETED → CLOSED
  *   branches: DECLINED · CANCELLED · DISPUTED · TERMINATED
  *
- * Signed terms are immutable (master spec §14): there is no transition from
+ * SENT → ACCEPTED is also valid: negotiation is optional. NEGOTIATION → SENT
+ * re-sends a revised version.
+ *
+ * Signed terms are immutable (master spec §14): nothing moves a contract from
  * ACCEPTED or beyond back to DRAFT, SENT or NEGOTIATION. Accepting signs the
  * current version inside the same transaction.
  *
- * The acceptor must be the expert — a customer cannot accept their own offer —
- * which is what `party: 'EXPERT'` enforces.
+ * Sending is the customer's signed offer; accepting is the expert's
+ * countersignature. `party: 'EXPERT'` on ACCEPT is what stops a customer from
+ * accepting their own offer.
  */
 
 import type { StateMachine, TransitionDefinition } from '../lifecycle/machine';
@@ -31,22 +35,31 @@ export const CONTRACT_STATES = [
 
 export type ContractState = (typeof CONTRACT_STATES)[number];
 
-export type ContractEvent =
-  | 'SEND'
-  | 'REQUEST_CHANGES'
-  | 'RESEND'
-  | 'ACCEPT'
-  | 'DECLINE'
-  | 'CANCEL'
-  | 'MARK_FUNDED'
-  | 'START'
-  | 'COMPLETE'
-  | 'CLOSE'
-  | 'RAISE_DISPUTE'
-  | 'RESOLVE_DISPUTE_CONTINUE'
-  | 'TERMINATE';
+export const CONTRACT_EVENTS = [
+  'SEND',
+  'REQUEST_CHANGES',
+  'RESEND',
+  'ACCEPT',
+  'DECLINE',
+  'CANCEL',
+  'MARK_FUNDED',
+  'START',
+  'COMPLETE',
+  'CLOSE',
+  'RAISE_DISPUTE',
+  'RESOLVE_DISPUTE',
+  'TERMINATE',
+] as const;
 
-export type ContractContext = Record<string, never>;
+export type ContractEvent = (typeof CONTRACT_EVENTS)[number];
+
+export interface ContractContext {
+  /** Supplied only for RESOLVE_DISPUTE: the state the contract was disputed from. */
+  readonly previousStatus?: ContractState | undefined;
+}
+
+/** States a dispute can be raised from — the terms bind both parties. */
+export const CONTRACT_DISPUTABLE: readonly ContractState[] = ['ACCEPTED', 'FUNDED', 'ACTIVE', 'COMPLETED'];
 
 const CUSTOMER_OWNS = ['contract:create:own', 'project:update:any'] as const;
 
@@ -62,7 +75,7 @@ const transitions: readonly Def[] = [
     party: 'CUSTOMER',
     risk: 'MEDIUM',
     financial: false,
-    description: 'Customer sends the drafted contract to the expert.',
+    description: 'Customer signs and sends the current version to the expert.',
   },
   {
     event: 'REQUEST_CHANGES',
@@ -83,12 +96,13 @@ const transitions: readonly Def[] = [
     party: 'CUSTOMER',
     risk: 'MEDIUM',
     financial: false,
-    description: 'Customer sends a revised version.',
+    description: 'Customer signs and sends the revised current version.',
   },
   {
     event: 'ACCEPT',
-    // STEP 02 §10.2 runs SENT → NEGOTIATION → ACCEPTED, so acceptance is valid
-    // from either. The current (unsuperseded) version is what gets signed.
+    // STEP 02 §10.2 runs SENT → NEGOTIATION → ACCEPTED, and negotiation is
+    // optional, so acceptance is valid from either. The current (unsuperseded)
+    // version is what gets signed.
     from: ['SENT', 'NEGOTIATION'],
     to: 'ACCEPTED',
     actors: ['HUMAN'],
@@ -96,7 +110,7 @@ const transitions: readonly Def[] = [
     party: 'EXPERT',
     risk: 'HIGH',
     financial: false,
-    description: 'Expert accepts and signs the current version. Terms become immutable.',
+    description: 'Expert countersigns the current version. Terms become immutable.',
   },
   {
     event: 'DECLINE',
@@ -113,7 +127,8 @@ const transitions: readonly Def[] = [
     event: 'CANCEL',
     from: ['DRAFT', 'SENT', 'NEGOTIATION'],
     to: 'CANCELLED',
-    actors: ['HUMAN'],
+    // SYSTEM: a project cancellation withdraws its unsigned contracts.
+    actors: ['HUMAN', 'SYSTEM'],
     permissions: CUSTOMER_OWNS,
     party: 'CUSTOMER',
     risk: 'MEDIUM',
@@ -124,7 +139,7 @@ const transitions: readonly Def[] = [
     event: 'MARK_FUNDED',
     from: ['ACCEPTED'],
     to: 'FUNDED',
-    actors: ['SYSTEM', 'WEBHOOK'],
+    actors: ['SYSTEM'],
     risk: 'HIGH',
     financial: true,
     description: 'A milestone on this contract was funded by a verified payment.',
@@ -160,23 +175,28 @@ const transitions: readonly Def[] = [
   },
   {
     event: 'RAISE_DISPUTE',
-    from: ['FUNDED', 'ACTIVE'],
+    from: CONTRACT_DISPUTABLE,
     to: 'DISPUTED',
     actors: ['HUMAN'],
     permissions: ['dispute:create:own'],
     risk: 'MEDIUM',
     financial: false,
-    description: 'Either party disputes a funded contract.',
+    description: 'Either party disputes a binding contract.',
   },
   {
-    event: 'RESOLVE_DISPUTE_CONTINUE',
+    event: 'RESOLVE_DISPUTE',
     from: ['DISPUTED'],
-    to: 'ACTIVE',
+    resolveTo: (context) =>
+      context.previousStatus && CONTRACT_DISPUTABLE.includes(context.previousStatus)
+        ? context.previousStatus
+        : undefined,
+    possibleTargets: CONTRACT_DISPUTABLE,
     actors: ['HUMAN'],
     permissions: ['dispute:resolve:any'],
     risk: 'HIGH',
     financial: false,
-    description: 'Dispute resolved; work continues.',
+    whenDescription: 'Cannot determine the state this contract was disputed from.',
+    description: 'Dispute resolved; the contract returns to the state it was disputed from.',
   },
   {
     event: 'TERMINATE',

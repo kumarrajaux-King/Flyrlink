@@ -120,14 +120,18 @@ export function findTransition<S extends string, E extends string, C>(
  *
  *   1. unknown event                    → UNKNOWN_EVENT
  *   2. actor kind not permitted         → AI_NOT_PERMITTED / ACTOR_NOT_PERMITTED
- *   3. target cannot be determined      → PRECONDITION_FAILED
+ *   3. static context guard fails       → PRECONDITION_FAILED
  *   4. already in the target state      → NO_OP (idempotent)
  *   5. current state not a valid source → INVALID_TRANSITION
- *   6. context guard fails              → PRECONDITION_FAILED
+ *   6. target cannot be determined      → PRECONDITION_FAILED
  *
  * The actor check runs BEFORE the idempotency check, so an AI or a disallowed
  * actor kind cannot use a NO_OP response to probe an entity's state. RBAC for
  * humans is applied by the service before any NO_OP is returned to them.
+ *
+ * The `when` guard runs before NO_OP too, so an event that can never apply to
+ * this entity (the wrong entry source, say) is refused rather than reported as
+ * an idempotent success.
  */
 export function evaluateTransition<S extends string, E extends string, C>(
   machine: StateMachine<S, E, C>,
@@ -157,19 +161,20 @@ export function evaluateTransition<S extends string, E extends string, C>(
     };
   }
 
-  const target = definition.resolveTo ? definition.resolveTo(context) : definition.to;
-  if (target === undefined) {
+  if (definition.when && !definition.when(context)) {
     return {
       kind: 'REJECTED',
       code: 'PRECONDITION_FAILED',
       message:
         definition.whenDescription ??
-        `${machine.name}.${definition.event} cannot determine its target state.`,
+        `${machine.name}.${definition.event} precondition not met.`,
       definition,
     };
   }
 
-  if (current === target) {
+  const target = definition.resolveTo ? definition.resolveTo(context) : definition.to;
+
+  if (target !== undefined && current === target) {
     return { kind: 'NO_OP', state: current, definition };
   }
 
@@ -182,13 +187,13 @@ export function evaluateTransition<S extends string, E extends string, C>(
     };
   }
 
-  if (definition.when && !definition.when(context)) {
+  if (target === undefined) {
     return {
       kind: 'REJECTED',
       code: 'PRECONDITION_FAILED',
       message:
         definition.whenDescription ??
-        `${machine.name}.${definition.event} precondition not met.`,
+        `${machine.name}.${definition.event} cannot determine its target state.`,
       definition,
     };
   }
@@ -253,7 +258,10 @@ export function reachableStates<S extends string, E extends string, C>(
   return seen;
 }
 
-/** Events that may legally fire from a given state (for UI affordances). */
+/**
+ * Events that are structurally valid from a given state for a kind of caller
+ * (for UI affordances). RBAC and the service's contextual rules still apply.
+ */
 export function availableEvents<S extends string, E extends string, C>(
   machine: StateMachine<S, E, C>,
   current: S,
@@ -263,9 +271,7 @@ export function availableEvents<S extends string, E extends string, C>(
   return machine.transitions
     .filter(
       (transition) =>
-        transition.from.includes(current) &&
-        transition.actors.includes(actorKind) &&
-        (!transition.when || transition.when(context)),
+        evaluateTransition(machine, current, transition.event, actorKind, context).kind === 'VALID',
     )
     .map((transition) => transition.event);
 }

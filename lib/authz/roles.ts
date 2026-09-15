@@ -162,6 +162,8 @@ const EXPERT_PERMISSIONS: readonly Permission[] = [
   'application:read:own',
   'assignment:respond:own',
   'contract:read:own',
+  // The expert countersigns the contract offered to them (Phase 6, approved).
+  'contract:accept:own',
   'milestone:read:own',
   'milestone:submit:own',
   'deliverable:create:own',

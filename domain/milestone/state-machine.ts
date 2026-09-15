@@ -2,13 +2,16 @@
  * Milestone lifecycle — STEP 02 §10.3.
  *
  *   DRAFT → PENDING_FUNDING → FUNDED → IN_PROGRESS → SUBMITTED → IN_REVIEW → APPROVED
- *   IN_REVIEW → REVISION_REQUESTED → IN_PROGRESS   (loop; revisionCount is a signal)
+ *   REVISION_REQUESTED → IN_PROGRESS        (loop; revision count is a performance signal)
  *   branches: DISPUTED → RESOLVED · CANCELLED
+ *
+ * IN_REVIEW → REVISION_REQUESTED opens the revision loop.
  *
  * The two transitions that touch money are protected in both directions:
  *
- *   - MARK_FUNDED can only come from SYSTEM or WEBHOOK, and the service requires
- *     a linked payment that a verified webhook confirmed.
+ *   - MARK_FUNDED is SYSTEM-only, and the service additionally requires a linked
+ *     payment that a verified webhook confirmed, for at least the milestone's
+ *     amount in the milestone's currency.
  *   - APPROVE is human-only and HIGH risk, because approval is what makes escrow
  *     eligible for release. An AI can never approve work.
  */
@@ -31,20 +34,33 @@ export const MILESTONE_STATES = [
 
 export type MilestoneState = (typeof MILESTONE_STATES)[number];
 
-export type MilestoneEvent =
-  | 'OPEN_FOR_FUNDING'
-  | 'MARK_FUNDED'
-  | 'START'
-  | 'SUBMIT'
-  | 'BEGIN_REVIEW'
-  | 'APPROVE'
-  | 'REQUEST_REVISION'
-  | 'RAISE_DISPUTE'
-  | 'RESOLVE_DISPUTE'
-  | 'CANCEL'
-  | 'CANCEL_FUNDED';
+export const MILESTONE_EVENTS = [
+  'OPEN_FOR_FUNDING',
+  'MARK_FUNDED',
+  'START',
+  'SUBMIT',
+  'BEGIN_REVIEW',
+  'APPROVE',
+  'REQUEST_REVISION',
+  'RAISE_DISPUTE',
+  'RESOLVE_DISPUTE',
+  'CANCEL',
+  'CANCEL_FUNDED',
+] as const;
+
+export type MilestoneEvent = (typeof MILESTONE_EVENTS)[number];
 
 export type MilestoneContext = Record<string, never>;
+
+/** Milestone states that mean escrow was funded by a verified payment. */
+export const MILESTONE_FUNDED_OR_LATER: readonly MilestoneState[] = [
+  'FUNDED',
+  'IN_PROGRESS',
+  'SUBMITTED',
+  'IN_REVIEW',
+  'APPROVED',
+  'REVISION_REQUESTED',
+];
 
 const CUSTOMER_REVIEW = ['milestone:approve:own', 'milestone:approve:any'] as const;
 const CUSTOMER_OWNS = ['contract:create:own', 'project:update:any'] as const;
@@ -61,16 +77,16 @@ const transitions: readonly Def[] = [
     party: 'CUSTOMER',
     risk: 'MEDIUM',
     financial: false,
-    description: 'Milestone finalised and opened for funding. Requires an accepted contract.',
+    description: 'Milestone finalised and opened for funding. Requires signed contract terms.',
   },
   {
     event: 'MARK_FUNDED',
     from: ['PENDING_FUNDING'],
     to: 'FUNDED',
-    actors: ['SYSTEM', 'WEBHOOK'],
+    actors: ['SYSTEM'],
     risk: 'HIGH',
     financial: true,
-    description: 'A verified payment funded this milestone into escrow.',
+    description: 'A webhook-confirmed payment funded this milestone into escrow.',
   },
   {
     event: 'START',
@@ -92,7 +108,7 @@ const transitions: readonly Def[] = [
     party: 'EXPERT',
     risk: 'MEDIUM',
     financial: false,
-    description: 'Expert submits the work. Requires at least one deliverable.',
+    description: 'Expert submits the work. Requires at least one submitted deliverable.',
   },
   {
     event: 'BEGIN_REVIEW',
@@ -131,13 +147,13 @@ const transitions: readonly Def[] = [
   },
   {
     event: 'RAISE_DISPUTE',
-    from: ['IN_PROGRESS', 'SUBMITTED', 'IN_REVIEW', 'REVISION_REQUESTED'],
+    from: ['FUNDED', 'IN_PROGRESS', 'SUBMITTED', 'IN_REVIEW', 'REVISION_REQUESTED'],
     to: 'DISPUTED',
     actors: ['HUMAN'],
     permissions: ['dispute:create:own'],
     risk: 'MEDIUM',
     financial: false,
-    description: 'Either party disputes the milestone.',
+    description: 'Either party disputes a funded milestone.',
   },
   {
     event: 'RESOLVE_DISPUTE',
@@ -153,12 +169,13 @@ const transitions: readonly Def[] = [
     event: 'CANCEL',
     from: ['DRAFT', 'PENDING_FUNDING'],
     to: 'CANCELLED',
-    actors: ['HUMAN'],
+    // SYSTEM: a project cancellation withdraws its unfunded milestones.
+    actors: ['HUMAN', 'SYSTEM'],
     permissions: CUSTOMER_OWNS,
     party: 'CUSTOMER',
     risk: 'MEDIUM',
     financial: false,
-    description: 'Cancelled before funding. Guarded against a captured payment.',
+    description: 'Cancelled before funding. Refused while a payment is in flight or captured.',
   },
   {
     event: 'CANCEL_FUNDED',
@@ -168,7 +185,7 @@ const transitions: readonly Def[] = [
     permissions: ['project:update:any'],
     risk: 'HIGH',
     financial: true,
-    description: 'An administrator cancels a funded milestone. Any refund is a separate flow.',
+    description: 'An administrator cancels a funded milestone once its funds are in the refund flow.',
   },
 ];
 

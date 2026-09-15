@@ -1,19 +1,29 @@
 /**
  * Project lifecycle — STEP 02 §10.1, made source-aware for A-01.
  *
- * The unified Project spine serves three entry flows, which diverge right after
+ *   DRAFT → SUBMITTED → AI_ANALYSIS → REQUIREMENT_REVIEW → MATCHING → RECOMMENDED
+ *         → AWAITING_APPROVAL → ASSIGNMENT_PENDING → CONTRACT_PENDING → PAYMENT_PENDING
+ *         → ACTIVE → COMPLETED → REVIEW_PENDING → CLOSED
+ *
+ *   ACTIVE ⇄ AT_RISK            (Risk Agent raises; recoverable)
+ *   any    → CANCELLED | DISPUTED | SUSPENDED
+ *
+ * The unified spine serves three entry flows, which diverge right after
  * submission and converge at CONTRACT_PENDING:
  *
- *   POSTED_PROJECT      SUBMITTED → AI_ANALYSIS → REQUIREMENT_REVIEW → MATCHING
- *                         → RECOMMENDED → AWAITING_APPROVAL → ASSIGNMENT_PENDING
+ *   POSTED_PROJECT      the full chain above
  *   DIRECT_HIRE         SUBMITTED → ASSIGNMENT_PENDING   (the invited expert)
  *   PREDEFINED_SERVICE  SUBMITTED → CONTRACT_PENDING     (the service is the scope)
  *
- *   all:  CONTRACT_PENDING → PAYMENT_PENDING → ACTIVE ⇄ AT_RISK
- *           → COMPLETED → REVIEW_PENDING → CLOSED
- *
  * Every divergence is a `when` guard on the entry source, so the machine stays
  * deterministic: a POSTED project cannot take the DIRECT_HIRE branch.
+ *
+ * "any → CANCELLED | DISPUTED | SUSPENDED" is implemented literally: each of
+ * those events is valid from every state other than its own target. The matrix
+ * is not narrowed here. Whether a particular cancellation or dispute is
+ * *permitted* in context — money held, a binding contract, no counterparty — is
+ * decided by the lifecycle service's business, payment-state and dispute rules,
+ * which are explicit, audited and tested.
  */
 
 import type { StateMachine, TransitionDefinition } from '../lifecycle/machine';
@@ -41,63 +51,69 @@ export const PROJECT_STATES = [
 
 export type ProjectState = (typeof PROJECT_STATES)[number];
 
+export const PROJECT_EVENTS = [
+  'SUBMIT',
+  'START_ANALYSIS',
+  'COMPLETE_ANALYSIS',
+  'REQUEST_REANALYSIS',
+  'APPROVE_REQUIREMENTS',
+  'PUBLISH_RECOMMENDATIONS',
+  'SHORTLIST',
+  'REQUEST_ALTERNATIVES',
+  'APPROVE_ASSIGNMENT',
+  'INVITE_DIRECT',
+  'PREPARE_SERVICE_CONTRACT',
+  'ACCEPT_ASSIGNMENT',
+  'DECLINE_ASSIGNMENT',
+  'DECLINE_INVITATION',
+  'MARK_CONTRACT_ACCEPTED',
+  'ACTIVATE',
+  'MARK_AT_RISK',
+  'RESOLVE_RISK',
+  'COMPLETE',
+  'REQUEST_REVIEWS',
+  'CLOSE',
+  'CANCEL',
+  'RAISE_DISPUTE',
+  'RESOLVE_DISPUTE',
+  'RESOLVE_DISPUTE_CLOSE',
+  'SUSPEND',
+  'RESUME',
+] as const;
+
+export type ProjectEvent = (typeof PROJECT_EVENTS)[number];
+
 export type ProjectSource = 'DIRECT_HIRE' | 'POSTED_PROJECT' | 'PREDEFINED_SERVICE';
 
 export interface ProjectContext {
   readonly source: ProjectSource;
-  /** Supplied only for RESUME: the state the project was suspended from. */
+  /**
+   * The state to restore, supplied only for RESUME (the state the project was
+   * suspended from) and RESOLVE_DISPUTE (the state it was disputed from).
+   */
   readonly previousStatus?: ProjectState | undefined;
 }
 
-export type ProjectEvent =
-  | 'SUBMIT'
-  | 'START_ANALYSIS'
-  | 'COMPLETE_ANALYSIS'
-  | 'REQUEST_REANALYSIS'
-  | 'APPROVE_REQUIREMENTS'
-  | 'PUBLISH_RECOMMENDATIONS'
-  | 'SHORTLIST'
-  | 'REQUEST_ALTERNATIVES'
-  | 'APPROVE_ASSIGNMENT'
-  | 'INVITE_DIRECT'
-  | 'PREPARE_SERVICE_CONTRACT'
-  | 'ACCEPT_ASSIGNMENT'
-  | 'DECLINE_ASSIGNMENT'
-  | 'DECLINE_INVITATION'
-  | 'MARK_CONTRACT_ACCEPTED'
-  | 'ACTIVATE'
-  | 'MARK_AT_RISK'
-  | 'RESOLVE_RISK'
-  | 'COMPLETE'
-  | 'REQUEST_REVIEWS'
-  | 'CLOSE'
-  | 'CANCEL'
-  | 'RAISE_DISPUTE'
-  | 'RESOLVE_DISPUTE_CONTINUE'
-  | 'RESOLVE_DISPUTE_CLOSE'
-  | 'SUSPEND'
-  | 'RESUME';
+/** The main flow's end states. Only the STEP 02 "any →" events leave them. */
+export const PROJECT_END_STATES: readonly ProjectState[] = ['CLOSED', 'CANCELLED'];
 
-/** States a customer may still cancel from — before any money moves. */
-export const PROJECT_CANCELLABLE: readonly ProjectState[] = [
-  'DRAFT',
-  'SUBMITTED',
-  'AI_ANALYSIS',
-  'REQUIREMENT_REVIEW',
-  'MATCHING',
-  'RECOMMENDED',
-  'AWAITING_APPROVAL',
-  'ASSIGNMENT_PENDING',
-  'CONTRACT_PENDING',
-  'PAYMENT_PENDING',
-];
+/** The STEP 02 §10.1 "any → CANCELLED | DISPUTED | SUSPENDED" events. */
+export const PROJECT_ANY_STATE_EVENTS: readonly ProjectEvent[] = ['CANCEL', 'RAISE_DISPUTE', 'SUSPEND'];
 
-/** Every non-terminal state except SUSPENDED itself. */
-export const PROJECT_SUSPENDABLE: readonly ProjectState[] = PROJECT_STATES.filter(
-  (state) => state !== 'CLOSED' && state !== 'CANCELLED' && state !== 'SUSPENDED',
-);
+/** Every project state except `target` — the literal STEP 02 "any". */
+export function projectStatesExcept(target: ProjectState): readonly ProjectState[] {
+  return PROJECT_STATES.filter((state) => state !== target);
+}
 
 const CUSTOMER_EDIT = ['project:update:own', 'project:update:any'] as const;
+
+function restore(target: ProjectState) {
+  const allowed = projectStatesExcept(target);
+  return (context: ProjectContext): ProjectState | undefined =>
+    context.previousStatus && allowed.includes(context.previousStatus)
+      ? context.previousStatus
+      : undefined;
+}
 
 type Def = TransitionDefinition<ProjectState, ProjectEvent, ProjectContext>;
 
@@ -195,7 +211,7 @@ const transitions: readonly Def[] = [
     party: 'CUSTOMER',
     risk: 'HIGH',
     financial: false,
-    description: 'Customer approves the recommended expert; they are invited.',
+    description: 'Customer approves the proposed expert, who is then invited.',
   },
   {
     event: 'INVITE_DIRECT',
@@ -218,7 +234,7 @@ const transitions: readonly Def[] = [
     risk: 'LOW',
     financial: false,
     when: (context) => context.source === 'PREDEFINED_SERVICE',
-    whenDescription: 'Only a PREDEFINED_SERVICE project skips straight to its contract.',
+    whenDescription: 'Only a PREDEFINED_SERVICE project goes straight to its contract.',
     description: 'A catalog purchase moves directly to its service contract.',
   },
   {
@@ -242,7 +258,7 @@ const transitions: readonly Def[] = [
     risk: 'MEDIUM',
     financial: false,
     when: (context) => context.source === 'POSTED_PROJECT',
-    whenDescription: 'Declining returns a POSTED_PROJECT to matching.',
+    whenDescription: 'Declining returns only a POSTED_PROJECT to matching.',
     description: 'The recommended expert declines; matching resumes.',
   },
   {
@@ -255,7 +271,7 @@ const transitions: readonly Def[] = [
     risk: 'MEDIUM',
     financial: false,
     when: (context) => context.source === 'DIRECT_HIRE',
-    whenDescription: 'Declining returns a DIRECT_HIRE project to draft for re-invitation.',
+    whenDescription: 'Declining returns only a DIRECT_HIRE project to draft.',
     description: 'The directly invited expert declines; the customer may invite another.',
   },
   {
@@ -271,7 +287,7 @@ const transitions: readonly Def[] = [
     event: 'ACTIVATE',
     from: ['PAYMENT_PENDING'],
     to: 'ACTIVE',
-    actors: ['SYSTEM', 'WEBHOOK'],
+    actors: ['SYSTEM'],
     risk: 'HIGH',
     financial: true,
     description: 'A milestone was funded by a verified payment; work may begin.',
@@ -280,7 +296,7 @@ const transitions: readonly Def[] = [
     event: 'MARK_AT_RISK',
     from: ['ACTIVE'],
     to: 'AT_RISK',
-    // The ONLY project event an AI agent may fire. Reversible and non-financial.
+    // The ONLY lifecycle event an AI agent may fire. Reversible and non-financial.
     actors: ['HUMAN', 'SYSTEM', 'AI_AGENT'],
     permissions: ['project:update:any'],
     risk: 'MEDIUM',
@@ -304,7 +320,7 @@ const transitions: readonly Def[] = [
     actors: ['SYSTEM'],
     risk: 'MEDIUM',
     financial: false,
-    description: 'Every contract on the project is complete.',
+    description: 'Every binding contract on the project is complete.',
   },
   {
     event: 'REQUEST_REVIEWS',
@@ -327,34 +343,40 @@ const transitions: readonly Def[] = [
   },
   {
     event: 'CANCEL',
-    from: PROJECT_CANCELLABLE,
+    from: projectStatesExcept('CANCELLED'),
     to: 'CANCELLED',
     actors: ['HUMAN'],
     permissions: ['project:cancel:own', 'project:update:any'],
     party: 'CUSTOMER',
     risk: 'MEDIUM',
     financial: false,
-    description: 'Cancelled before any money moved. Guarded against a captured payment.',
+    description:
+      'STEP 02 "any → CANCELLED". Refused in context while money is held or in flight, or a ' +
+      'contract binds the parties.',
   },
   {
     event: 'RAISE_DISPUTE',
-    from: ['ACTIVE', 'AT_RISK', 'COMPLETED', 'REVIEW_PENDING'],
+    from: projectStatesExcept('DISPUTED'),
     to: 'DISPUTED',
     actors: ['HUMAN'],
     permissions: ['dispute:create:own'],
     risk: 'MEDIUM',
     financial: false,
-    description: 'Either party disputes the engagement.',
+    description:
+      'STEP 02 "any → DISPUTED". Refused in context unless a binding contract exists between ' +
+      'the parties.',
   },
   {
-    event: 'RESOLVE_DISPUTE_CONTINUE',
+    event: 'RESOLVE_DISPUTE',
     from: ['DISPUTED'],
-    to: 'ACTIVE',
+    resolveTo: restore('DISPUTED'),
+    possibleTargets: projectStatesExcept('DISPUTED'),
     actors: ['HUMAN'],
     permissions: ['dispute:resolve:any'],
     risk: 'HIGH',
     financial: false,
-    description: 'Dispute resolved; work continues.',
+    whenDescription: 'Cannot determine the state this project was disputed from.',
+    description: 'Dispute resolved; the project returns to the state it was disputed from.',
   },
   {
     event: 'RESOLVE_DISPUTE_CLOSE',
@@ -368,22 +390,19 @@ const transitions: readonly Def[] = [
   },
   {
     event: 'SUSPEND',
-    from: PROJECT_SUSPENDABLE,
+    from: projectStatesExcept('SUSPENDED'),
     to: 'SUSPENDED',
     actors: ['HUMAN'],
     permissions: ['project:update:any'],
     risk: 'HIGH',
     financial: false,
-    description: 'An administrator suspends the project (policy, fraud, investigation).',
+    description: 'STEP 02 "any → SUSPENDED". An administrator freezes the project.',
   },
   {
     event: 'RESUME',
     from: ['SUSPENDED'],
-    resolveTo: (context) =>
-      context.previousStatus && PROJECT_SUSPENDABLE.includes(context.previousStatus)
-        ? context.previousStatus
-        : undefined,
-    possibleTargets: PROJECT_SUSPENDABLE,
+    resolveTo: restore('SUSPENDED'),
+    possibleTargets: projectStatesExcept('SUSPENDED'),
     actors: ['HUMAN'],
     permissions: ['project:update:any'],
     risk: 'HIGH',
@@ -397,6 +416,8 @@ export const PROJECT_MACHINE: StateMachine<ProjectState, ProjectEvent, ProjectCo
   name: 'Project',
   states: PROJECT_STATES,
   initial: 'DRAFT',
-  terminal: ['CLOSED', 'CANCELLED'],
+  // STEP 02's "any →" rule leaves every project state an exit, so no state is
+  // structurally terminal. PROJECT_END_STATES records the main flow's ends.
+  terminal: [],
   transitions,
 };

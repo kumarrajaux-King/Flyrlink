@@ -447,11 +447,18 @@ export const riskAgent: AgentDefinition = {
   key: 'RISK',
   name: 'Risk Monitoring Agent',
   description: 'Detects deadline, budget, scope and engagement risk.',
-  version: '1.0.0',
-  promptRef: 'prompts/risk@1.0.0',
+  // 1.1.0 (Phase 6): may flag an ACTIVE project AT_RISK through the lifecycle service.
+  version: '1.1.0',
+  promptRef: 'prompts/risk@1.1.0',
   effort: 'high',
   defaultRiskTier: 'MEDIUM',
-  allowedTools: ['getProjectContext', 'getMilestoneStatus', 'getPaymentStatus', 'sendNotification'],
+  allowedTools: [
+    'getProjectContext',
+    'getMilestoneStatus',
+    'getPaymentStatus',
+    'sendNotification',
+    'flagProjectAtRisk',
+  ],
   systemPrompt: systemPrompt(
     `Detect risk: approaching or missed deadlines, budget overrun, inactivity,
 repeated revisions, scope creep and blocked work.
@@ -459,7 +466,9 @@ repeated revisions, scope creep and blocked work.
 For each risk give a level, the evidence, and a concrete recommended action for a
 human. Quantify wherever possible — "milestone 2 is due in 3 days at 48% reported
 completion" is useful; "the project may be at risk" is not. You may raise an in-app
-notification, but you cannot change project state.`,
+notification, and you may flag an ACTIVE project as at risk when the evidence
+supports it — a human can reverse that. You cannot change any other project,
+contract, milestone or payment state.`,
   ),
   inputSchema: z.object({ projectId: z.string() }),
   outputSchema: z.object({
