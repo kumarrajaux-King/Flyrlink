@@ -38,6 +38,8 @@
     "services/**/*.ts",
     "app/**/*.ts",
     "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
     "prisma/**/*.ts",
     "tests/**/*.ts",
     "prisma.config.ts",
