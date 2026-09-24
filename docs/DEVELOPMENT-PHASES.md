@@ -11,7 +11,7 @@ Maintained continuously. Updated at the end of every phase.
 | 5 | Expert Marketplace | ⏭️ **Next — blocked by `M-01` (Figma)** | |
 | 6 | Customer Project Marketplace | ✅ **Lifecycle backend complete — awaiting architecture review.** UI not started (blocked by `M-06`/`M-07`) | `STEP-06-LIFECYCLE.md`, `domain/*/state-machine.ts`, `services/lifecycle/`, 4 API routes |
 | 7 | AI Agentic System | ✅ **Implemented — awaiting review** | `AI-AGENT-ARCHITECTURE.md`, `ai/`, `services/ai/`, 7 API routes |
-| 8 | Admin Control Plane | ⬜ Not started | |
+| 8 | Admin Control Plane | ✅ **Backend complete — awaiting review.** UI not started | `STEP-08-ADMIN-OPERATIONS.md`, `lib/authz/admin-policy.ts`, `services/admin/`, 47 API routes |
 | 9 | Messaging + Collaboration | ⬜ Not started | |
 | 10 | Payments, Transactions, Commission, Refunds, Payouts | ⬜ Not started — **blocked by `M-03`, `M-04`** | `PAYMENT-ARCHITECTURE.md` |
 | 11 | Ratings + Reviews + Reputation | ⬜ Not started | |
@@ -172,6 +172,25 @@ the `flagProjectAtRisk` tool (MEDIUM) and the same lifecycle service; the RISK a
 **No schema change.** 1,724 tests passing across 13 files, including an exhaustive matrix suite and
 database tests that apply every event. Typecheck, lint and `next build` are clean. The deviations from
 STEP 02 are listed in `STEP-06-LIFECYCLE.md` §11.
+
+### 2026-09-16 — Phase 8 admin / operations backend delivered
+
+Twenty admin areas are live as backend services and 47 routes under `/api/admin`: dashboard, users, customers,
+experts, verification, projects, contracts, milestones, payments, payouts, disputes, reviews, categories, AI
+operations, support lookup, audit log and security overview.
+
+**No schema change and no RBAC change** (still 71 permissions). Access is 30 capabilities expressed in the
+existing grants (`lib/authz/admin-policy.ts`), plus resource rules: no acting on yourself, only SUPER_ADMIN
+on privileged accounts, and no deciding a matter you are party to. Non-trivial changes need a reason;
+HIGH/CRITICAL ones need `confirm` plus the expected status.
+
+Five new pure machines govern records without a Phase 6 machine: account standing, verification, dispute
+triage, review moderation and payout decisions. Project, contract, milestone and payment interventions call
+the Phase 6 lifecycle services, so admins cannot bypass them; dispute resolution is the lifecycle's
+`RESOLVE_DISPUTE`. No admin code deletes records or writes money, and a source-scan test enforces both.
+
+266 tests added (2,004 total). Typecheck, lint and build are clean. The pre-existing intermittent
+`ai-orchestrator.test.ts` connection failures are reported separately in `STEP-08-ADMIN-OPERATIONS.md` §15.
 
 ## Open decisions requiring sign-off
 

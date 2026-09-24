@@ -60,6 +60,21 @@ export const AUDIT_ACTIONS = {
   ROLE_ASSIGNED: 'user.role.assigned',
   ROLE_REVOKED: 'user.role.revoked',
   AUTHORIZATION_DENIED: 'authorization.denied',
+  // Admin control plane (Phase 8)
+  ADMIN_ACCOUNT_TRANSITIONED: 'admin.account.transitioned',
+  ADMIN_SESSIONS_REVOKED: 'admin.account.sessions_revoked',
+  ADMIN_LOCKOUT_CLEARED: 'admin.account.lockout_cleared',
+  ADMIN_VERIFICATION_TRANSITIONED: 'admin.verification.transitioned',
+  ADMIN_DISPUTE_TRANSITIONED: 'admin.dispute.transitioned',
+  ADMIN_REVIEW_TRANSITIONED: 'admin.review.transitioned',
+  ADMIN_PAYOUT_TRANSITIONED: 'admin.payout.transitioned',
+  ADMIN_CATEGORY_CREATED: 'admin.category.created',
+  ADMIN_CATEGORY_UPDATED: 'admin.category.updated',
+  ADMIN_CATEGORY_STATUS_CHANGED: 'admin.category.status_changed',
+  ADMIN_AI_AGENT_STATUS_CHANGED: 'admin.ai.agent_status_changed',
+  ADMIN_INTERVENTION_REQUESTED: 'admin.intervention.requested',
+  ADMIN_INTERVENTION_COMPLETED: 'admin.intervention.completed',
+  ADMIN_ACTION_DENIED: 'admin.action.denied',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
