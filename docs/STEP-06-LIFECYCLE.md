@@ -533,7 +533,7 @@ The integration suite ends by asserting that **every one of the 64 events was ap
 - R-1 / M-06: Figma tokens.
 - M-07: mobile designs.
 - R-7: city/country — **unresolved, untouched**.
-- M-03 / M-04: commission model and launch geography.
+- ~~M-03 / M-04~~: **resolved 2026-09-25** — 10% flat talent-side commission; India, INR, Razorpay and Stripe. `M-04a` (legal entity and provider contracting) and `M-04b` (tax sign-off) remain.
 - The live AI providers are unexercised, and the OpenAI adapter is untested against the live API.
 - There is no `SupportTicket` model.
 - Four accepted Prisma-transitive npm advisories.

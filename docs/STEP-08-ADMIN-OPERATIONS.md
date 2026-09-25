@@ -37,7 +37,7 @@ reviews, categories, AI operations, support lookup, audit log and security overv
 | --- | --- |
 | Admin UI | Out of scope for this phase |
 | Dispute award amounts | An award moves money; it waits for the Phase 10 ledger |
-| Refund processing, payout processing, ledger postings | Phase 10 (blocked by `M-03`, `M-04`) |
+| Refund processing, payout processing, ledger postings | Phase 10 (blocked by `M-04a` provider contracting, `M-04b` tax sign-off) |
 | Support tickets | No `SupportTicket` model in the approved schema |
 | Editable platform settings | No settings model; the RBAC matrix is code |
 | Reputation recompute on moderation | Phase 11 |

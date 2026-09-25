@@ -2,17 +2,18 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Draft for review.** No marketing claim ships until §8 is signed off |
-| Owner | Content and Growth, with Legal sign-off on §8 |
+| Status | **Draft for review.** No marketing claim ships until §9 is signed off |
+| Owner | Content and Growth, with Legal sign-off on §9 |
 | Audience | Prospective clients, prospective experts, enterprise buyers |
 | Depends on | STEP 01 (UX), the Phase 5 preview component library, Phase 6 lifecycle, Phase 8 control plane |
-| Blocked by | `M-02` brand assets, `M-03` commission model, `M-04` launch geography |
+| Blocked by | `M-02` brand assets |
+| Settled | India launch · INR · Razorpay and Stripe · 10% flat talent-side commission |
 
 > [!IMPORTANT]
 > **Every capability claim here must be true at launch.** A talent marketplace that
 > advertises verification, escrow protection or matching speed it cannot deliver invites
 > misrepresentation and consumer-protection exposure, and destroys the trust the product
-> is built on. §8 lists each claim with its substantiation status. Anything marked
+> is built on. §9 lists each claim with its substantiation status. Anything marked
 > **UNSUBSTANTIATED** must be cut, softened, or made true before it ships.
 
 ---
@@ -60,7 +61,7 @@ into the platform rather than bolted on.
 > [!WARNING]
 > The variant "Hire vetted talent in 4 minutes" is **held**. Nothing measures
 > time-to-shortlist today, and a stated time is a performance promise. Ship it only once
-> instrumentation supports a median, phrased as typical and carrying a date. See §8.
+> instrumentation supports a median, phrased as typical and carrying a date. See §9.
 
 ### 2.2 Expert hero (`/for-experts`)
 
@@ -139,7 +140,7 @@ Public badge states map to `VerificationStatus`: `VERIFIED` shows a badge;
 > [!WARNING]
 > Never describe verification as "cryptographic". Nothing in the verification path is
 > cryptographically attested — it is document review plus human judgement, recorded in an
-> append-only audit trail. See §8.
+> append-only audit trail. See §9.
 
 ---
 
@@ -168,9 +169,48 @@ Public badge states map to `VerificationStatus`: `VERIFIED` shows a badge;
 
 ---
 
-## 6. Conversion microcopy
+## 6. Pricing
 
-### 6.1 Calls to action
+**Heading:** One number. 10%.
+
+**Subhead:** Experts pay 10% of what they earn. Clients pay the milestone amount and
+nothing else — no posting fee, no contract fee, no fee to pay by UPI or card.
+
+| Who | What they pay | When |
+| --- | --- | --- |
+| Client | The milestone amount | On funding, before work starts |
+| Expert | 10% of each milestone released | On release, deducted from the payout |
+| Enterprise | Agreed in the contract | Per contract |
+
+**The paragraph that does the work:**
+
+> Ten percent, flat, on what an expert actually gets paid. Not on what they quote, not on
+> what they invoice — on what clears escrow. There is no tier to climb, no threshold that
+> changes the rate mid-project, and no fee on a project that never funds. Clients are not
+> charged a platform fee at all, because the moment someone is deciding whether to fund a
+> milestone is the worst possible moment to introduce a surprise.
+
+**Microcopy at the point of payment:**
+
+| Surface | Copy |
+| --- | --- |
+| Client funding screen | You pay ₹{amount}. There is no platform fee for clients. |
+| Expert quote builder | You'll receive ₹{net} of a ₹{gross} milestone after our 10% fee, before any tax withheld. |
+| Expert earnings page | Gross ₹{gross} · platform fee ₹{fee} · tax withheld ₹{tax} · **net ₹{net}** |
+| Payout tooltip | Withheld tax is deposited against your PAN, not kept by us. It appears on your statement. |
+
+> [!WARNING]
+> **Two things this copy must not say until they are built.** Do not state a withholding
+> rate anywhere in the interface — statutory rates change and the chartered accountant has
+> not confirmed the mechanics (`escrow-and-disputes.md` §6.2). Do not describe escrow as
+> "held by Flyrlink": it is held by the payment partner, and §0 of the escrow policy
+> explains why the distinction is not cosmetic.
+
+---
+
+## 7. Conversion microcopy
+
+### 7.1 Calls to action
 
 | Placement | Primary | Secondary | Note |
 | --- | --- | --- | --- |
@@ -180,14 +220,14 @@ Public badge states map to `VerificationStatus`: `VERIFIED` shows a badge;
 | Empty shortlist | Adjust the brief | Talk to us | |
 | Milestone review | Approve and release | Request a revision | Approval copy must name the money consequence |
 
-### 6.2 Trust badges
+### 7.2 Trust badges
 
 - **Verified by people** — identity, credentials and portfolio reviewed by a verification manager.
 - **Milestone escrow** — funded before work starts, released on your approval.
 - **Dispute cover** — a three-stage process with evidence review.
 - **Audit trail** — every decision recorded, with who made it and why.
 
-### 6.3 Tooltips
+### 7.3 Tooltips
 
 | Term | Tooltip |
 | --- | --- |
@@ -198,7 +238,7 @@ Public badge states map to `VerificationStatus`: `VERIFIED` shows a badge;
 | Advisory estimate | A range produced from your brief and comparable work. It is not a quote, and an expert's proposal may differ. |
 | Inspection period | The window for reviewing a delivery before it is treated as accepted. |
 
-### 6.4 Empty states
+### 7.4 Empty states
 
 | Surface | Heading | Body | Action |
 | --- | --- | --- | --- |
@@ -209,7 +249,7 @@ Public badge states map to `VerificationStatus`: `VERIFIED` shows a badge;
 | Verification pending | Verification in review | A verification manager is reviewing your evidence. You will hear from us by email. | View submission |
 | Awaiting funding | Waiting on funding | Work begins once the client funds the first milestone. | Message the client |
 
-### 6.5 Onboarding
+### 7.5 Onboarding
 
 **Client:** describe the outcome → review the structured brief → compare the shortlist →
 approve an expert → agree the contract and milestones → fund the first milestone.
@@ -218,7 +258,7 @@ approve an expert → agree the contract and milestones → fund the first miles
 set rate and availability → receive matched invitations → accept the contract and start
 the funded milestone.
 
-### 6.6 System and permission messages
+### 7.6 System and permission messages
 
 | Situation | Message |
 | --- | --- |
@@ -231,7 +271,7 @@ the funded milestone.
 
 ---
 
-## 7. SEO
+## 8. SEO
 
 | Page | Title tag | Meta description |
 | --- | --- | --- |
@@ -248,13 +288,13 @@ talent marketplace, trust and governance, granular audit trails.
 freelancer platform, enterprise freelancer governance.
 
 **Rules.** One `<h1>` per page. A keyword earns its place in body copy or is left out. No
-claim appears in a title tag unless §8 substantiates it. Use `FAQPage` and
+claim appears in a title tag unless §9 substantiates it. Use `FAQPage` and
 `BreadcrumbList` structured data on marketing pages; no `Review` or `AggregateRating`
 markup until real review volume exists.
 
 ---
 
-## 8. Claims register
+## 9. Claims register
 
 Publication gate: nothing ships while marked **UNSUBSTANTIATED** or **BLOCKED**.
 
@@ -271,13 +311,16 @@ Publication gate: nothing ships while marked **UNSUBSTANTIATED** or **BLOCKED**.
 | 9 | Cryptographically verified human skill | **UNSUBSTANTIATED** | No cryptographic attestation exists in verification |
 | 10 | Zero spam proposals | **UNSUBSTANTIATED** | Experts can apply to posted projects |
 | 11 | Real-time code and design proof-of-work | **UNSUBSTANTIATED** | No execution or design sandbox exists |
-| 12 | Any stated fee or commission rate | **BLOCKED** | Commission model undecided (`M-03`) |
-| 13 | Automatic release after an inspection period | **BLOCKED** | Not implemented. See `docs/policies/escrow-and-disputes.md` §3 |
-| 14 | Client logos, testimonials or volume counts | **BLOCKED** | None exist. Do not invent press logos or numbers |
+| 12 | 10% flat, charged to the expert, no client platform fee | **SUBSTANTIATED** | Decided and configurable as a versioned `CommissionRule`; the rate is recorded per engagement |
+| 13 | "Flyrlink holds your money in escrow" | **BLOCKED** | We do not hold it. Say "held by our payment partner" — escrow policy §0 |
+| 14 | Any stated tax-withholding rate or net-payout figure | **BLOCKED** | Withholding is not implemented and rates are unconfirmed |
+| 15 | A guaranteed escrow hold period for a long milestone | **BLOCKED** | Bounded by the provider facility, which is not contracted |
+| 16 | Automatic release after an inspection period | **BLOCKED** | Not implemented. See `docs/policies/escrow-and-disputes.md` §3 |
+| 17 | Client logos, testimonials or volume counts | **BLOCKED** | None exist. Do not invent press logos or numbers |
 
 ---
 
-## 9. Voice
+## 10. Voice
 
 Plain, specific, never breathless. Say what the system does and who decides. Prefer "a
 verification manager reviews your evidence" to "AI-powered verification". Numbers appear

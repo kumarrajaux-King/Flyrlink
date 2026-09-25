@@ -21,8 +21,8 @@ Read in this order:
 | [`docs/STEP-08-ADMIN-OPERATIONS.md`](docs/STEP-08-ADMIN-OPERATIONS.md) | Admin control plane: capabilities, governed changes, interventions, audit |
 | [`docs/architecture/information-architecture.md`](docs/architecture/information-architecture.md) | Sitemap, content model, SEO and metadata rules, layouts and components |
 | [`docs/content/landing-pages.md`](docs/content/landing-pages.md) | Marketing copy and microcopy, with the claims register that gates publication |
-| [`docs/policies/terms-of-service.md`](docs/policies/terms-of-service.md) | Draft Terms of Service — **not in force**, pending counsel review (`M-05`) |
-| [`docs/policies/escrow-and-disputes.md`](docs/policies/escrow-and-disputes.md) | Escrow lifecycle, dispute triage, fees, ledger and payout governance |
+| [`docs/policies/terms-of-service.md`](docs/policies/terms-of-service.md) | Draft Terms of Service for **India** — **not in force**, pending Indian counsel review (`M-05`) |
+| [`docs/policies/escrow-and-disputes.md`](docs/policies/escrow-and-disputes.md) | Escrow lifecycle, dispute triage, 10% commission, Indian tax mechanics, ledger and payout governance |
 | [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md) | Phase status, open decisions, blocking inputs |
 
 ## The three experiences
@@ -72,5 +72,6 @@ The full list is in the [blueprint](docs/PRODUCT-BLUEPRINT.md#5-non-negotiables)
 | --- | --- | --- |
 | M-06 | **Figma MCP access** (quota exhausted) | Exact design tokens for all UI. The UI will not be invented. |
 | M-07 | **Mobile designs** (Figma is desktop-only) | Responsive UI work |
-| M-03 | Commission model | Phase 10 |
-| M-04 | Launch geography + legal entity | Payment provider selection |
+| M-04a | **Legal entity and provider contracting** — incorporation, CIN, GSTIN, Grievance Officer, and the escrow hold window Razorpay will permit | Publishing the Terms and escrow policy; Phase 10 |
+| M-04b | **Tax sign-off** — GST, TDS u/s 194-O, GST TCS u/s 52 | Withholding in Phase 10 |
+| M-05 | **Indian counsel review** of the draft Terms | Publishing anything user-facing and legally binding |

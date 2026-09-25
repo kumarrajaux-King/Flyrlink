@@ -5,15 +5,18 @@
 | Status | **Draft for counsel review. Not in force.** |
 | Version | 0.1 (unpublished) |
 | Owner | Legal, with Product and Finance |
-| Blocked by | `M-04` launch geography and legal entity · `M-05` legal review · `M-03` commission model |
+| Jurisdiction | **India.** Drafted for Indian law, Indian forum and INR settlement |
+| Blocked by | `M-04a` legal entity, CIN and registered office · `M-05` review by Indian counsel |
 | Related | `docs/policies/escrow-and-disputes.md` |
 
 > [!CAUTION]
-> **This is drafting input, not legal advice, and not a published agreement.** It was
-> written to be reviewed by qualified counsel in the launch jurisdiction. Several clauses
-> below are enforceable only in some jurisdictions and are flagged. `M-05` stays open until
-> counsel signs this off. Do not present it to users, and do not treat acceptance of it as
-> binding, before that.
+> **This is drafting input, not legal advice, and not a published agreement.** It is drafted
+> for **India** and must be reviewed by Indian counsel. Two clauses carry real risk of being
+> struck down rather than merely narrowed, and are flagged where they appear: the
+> post-engagement restraint in §8, against section 27 of the Indian Contract Act 1872, and
+> the assignment of deliverables in §9, against the formalities in section 19 of the
+> Copyright Act 1957. `M-05` stays open until counsel signs this off. Do not present it to
+> users, and do not treat acceptance of it as binding, before that.
 
 **Legend** — `[ENFORCED]` the platform technically enforces this today ·
 `[CONTRACTUAL]` binding on the parties but not machine-enforced ·
@@ -25,13 +28,14 @@
 
 | Term | Meaning |
 | --- | --- |
-| **Flyrlink**, "we", "us" | The operating entity (to be named on completion of `M-04`) |
+| **Flyrlink**, "we", "us" | The operating company, to be incorporated in India. Name, CIN and registered office are completed on `M-04a` |
+| **Payment Partner** | Razorpay, for collection and payouts within India, and Stripe, for collection from outside India. A Payment Partner is not our agent for the purposes of these Terms |
 | **Platform** | The Flyrlink website, applications and APIs |
 | **Client** | A user who posts work, engages an Expert, or funds a milestone |
 | **Expert** | A user who offers services, accepts engagements, or delivers work |
 | **User** | Any account holder, including administrators |
 | **Engagement** | A project, its contract, milestones and deliverables |
-| **Escrow** | Client funds held against a milestone, per the Escrow and Dispute Policy |
+| **Escrow** | Client funds held **by a Payment Partner**, not by Flyrlink, against a milestone, per the Escrow and Dispute Policy |
 | **Agent** | An automated component that analyses, estimates, ranks or drafts, subject to human approval |
 | **Platform Content** | Content we own or license |
 | **User Content** | Anything a User submits, including briefs, proposals, messages and deliverables |
@@ -110,8 +114,11 @@ your own. `[CONTRACTUAL]`
 
 5.2 You hold the rights to the User Content you submit. `[CONTRACTUAL]`
 
-5.3 You will comply with applicable law, including tax obligations. We do not withhold or
-file taxes on your behalf unless we say so in writing for your jurisdiction. `[COUNSEL]`
+5.3 You will comply with applicable law, including your own tax obligations. Where Indian
+law requires us to withhold or collect tax on a payment we facilitate, we will do so and
+will show it on your statement; that is the extent of it. We do not compute, file or pay
+your income tax or GST. If you are registered for GST, you remain the supplier of your own
+services and are responsible for invoicing and returns. `[COUNSEL]`
 
 5.4 You will not misrepresent your identity, skills, availability, or who performed the
 work. Subcontracting must be disclosed to the Client. `[CONTRACTUAL]`
@@ -141,8 +148,11 @@ makes escrow release-eligible. `[ENFORCED]`
 
 ## 7. Fees and payment
 
-7.1 Fees are set out in the Escrow and Dispute Policy and on the pricing page. `[BLOCKED
-— `M-03`]`
+7.1 **Platform commission is 10% of the amount released on a milestone, charged to the
+Expert.** A Client pays the milestone amount and no separate platform fee. Enterprise
+Clients may agree different terms in writing. The rate is configured, versioned and
+recorded per engagement; an engagement keeps the rate it was priced under, and a change
+never applies backwards. `[ENFORCED]`
 
 7.2 Funds are held in escrow and released per that policy. Release is a separate act
 requiring an authorised finance role with MFA, refused while a dispute is open.
@@ -151,53 +161,92 @@ requiring an authorised finance role with MFA, refused while a dispute is open.
 7.3 Payment capture is recognised only from a signature-verified provider webhook. No
 redirect, message or administrative action substitutes for it. `[ENFORCED]`
 
-7.4 You are responsible for taxes on your own income. `[COUNSEL]`
+7.4 Amounts are stated exclusive of tax. GST is charged on our commission where
+applicable. `[COUNSEL]`
 
-7.5 Chargebacks and reversals are handled per the Escrow and Dispute Policy §7.
+7.5 **Withholding.** As an operator of an electronic platform we are required to withhold
+or collect certain amounts on payments we facilitate to residents of India, and to deposit
+them against your PAN or GST registration. Those amounts reduce what we remit to you and
+are shown, line by line, on your statement. They are not a fee, and we keep none of them.
+The applicable rates are set by statute and change; we apply the rate in force.
+`[COUNSEL]`
+
+7.6 Chargebacks and reversals are handled per the Escrow and Dispute Policy §7.
+
+7.7 **We do not hold your money.** Funds are held by a Payment Partner in an account it
+operates under its own authorisation, and are settled on our instruction. Our records
+mirror that balance; they are not a bank account and they are not a claim against us for a
+balance we hold. `[ENFORCED]`
 
 ---
 
-## 8. Non-circumvention
+## 8. Introduction fees and circumvention
 
-> [!WARNING]
-> `[COUNSEL]` Liquidated damages, fixed multipliers and post-engagement restraints are
-> unenforceable or capped in several jurisdictions, and restraints on an independent
-> contractor's ability to work draw particular scrutiny. Counsel must set the numbers,
-> the duration and the remedy, and confirm each is enforceable where we launch. The
-> figures below are drafting placeholders for that conversation, not approved terms.
+> [!CAUTION]
+> `[COUNSEL]` **Section 27 of the Indian Contract Act 1872 makes an agreement that restrains
+> anyone from exercising a lawful profession or trade void to that extent.** India does not
+> apply the reasonableness test that saves narrow post-termination restraints in some other
+> countries; the only statutory exception is the sale of goodwill. A clause drafted as
+> *"you may not work with this counterparty for 12 months"* is therefore likely to be
+> **void, not merely narrowed**, and a void clause is worse than none — it invites a
+> declaratory challenge and takes the rest of the section with it in the user's mind.
+>
+> This section is drafted instead as a **fee for an introduction we actually made**, leaving
+> the user free to work with whomever they choose. Counsel must confirm the construction,
+> and must confirm the amount is reasonable compensation rather than a penalty under
+> section 74.
 
-8.1 **The rule.** For **12 months** after your first introduction through the Platform,
-you will not arrange or invoice work with that counterparty outside the Platform, where
-the relationship began here. `[CONTRACTUAL]`
+8.1 **You are free to work with anyone.** Nothing here restricts who you may work with,
+when, or on what terms. What follows is about what is **owed to us** where we made the
+introduction, not about what you are permitted to do. `[CONTRACTUAL]`
 
-8.2 **What is prohibited.** Soliciting a move off-platform; sharing contact details to
-avoid fees before a contract exists; invoicing a matched counterparty directly for
-matched work; and using Platform data to build a competing roster. `[CONTRACTUAL]`
+8.2 **Introduction fee.** Where we introduced you to a counterparty and, within **12
+months** of that introduction, you invoice or are paid for work with them outside the
+Platform that arises from the introduction, an introduction fee becomes payable to us on
+that amount. **The fee is the same 10% we would have earned had the work been contracted
+here** — never more, so that moving the work off-platform costs you nothing extra and the
+fee is a measure of what we lost, not a punishment for leaving. `[CONTRACTUAL]` `[COUNSEL]`
 
-8.3 **What is not prohibited.** Working with someone you already worked with before
-Flyrlink, where you can evidence the prior relationship; work in a different field with
-no connection to the introduction; and continuing a relationship after a permitted
-buy-out under 8.5.
+8.3 **When no fee is owed.** No fee arises where: you worked with the counterparty before
+Flyrlink and can evidence it; the work is in a different field, unconnected to the
+introduction; the 12 months have passed; a buy-out under 8.6 has been paid; or an
+enterprise agreement under 8.7 applies. The burden of showing an introduction produced the
+work is **ours**, not yours. `[CONTRACTUAL]`
 
-8.4 **Consequences.** Graduated, and never automatic:
+8.4 **What we do treat as misconduct.** Separately from any fee, these breach these Terms:
+concealing a matched engagement when asked directly; sharing contact details specifically
+to avoid fees before any contract exists; scraping or exporting Platform data to build a
+competing roster; and organised, repeated evasion. `[CONTRACTUAL]`
+
+8.5 **Consequences.** Graduated, never automatic, and separate from the fee:
 
 | Finding | Consequence |
 | --- | --- |
-| First, no completed off-platform work | Written warning, recorded |
-| Solicitation with evidence | Feature restriction, loss of matching priority |
-| Completed off-platform work | Recovery of the fees avoided, plus an administrative charge `[COUNSEL]` |
-| Repeated or organised evasion | Termination and permanent removal |
+| Introduced work invoiced off-platform, disclosed | The 8.2 fee, invoiced normally. No account consequence |
+| Introduced work concealed when asked | The fee, plus loss of matching priority `[COUNSEL]` |
+| Data export or roster building | Feature restriction, and account review |
+| Organised or repeated evasion | Termination and permanent removal |
 
-8.5 **Relationship buy-out.** A Client may take a relationship off-platform by paying a
-conversion fee, set on the pricing page and confirmed in writing. Once paid, clause 8.1
-no longer applies to that counterparty. `[BLOCKED — `M-03`]`
+Withdrawing our own matching, priority or features is a decision to stop providing our
+service, not a restraint on your trade — and it is the only lever we rely on.
 
-8.6 **Enterprise opt-out.** An enterprise Client may negotiate a written agreement
-replacing this section — for example a per-seat or subscription arrangement where
+8.6 **Relationship buy-out.** A Client may end any future fee obligation for a counterparty
+by paying a one-time buy-out. Once paid, 8.2 no longer applies to that counterparty.
+`[BLOCKED — pricing decision]`
+
+> [!NOTE]
+> The buy-out amount is an open commercial decision, and is deliberately not invented here.
+> The recommended measure is **parity with commission**: never more than what staying on the
+> Platform for the remainder of the period would have cost. That keeps it defensible as
+> reasonable compensation under section 74, and it is the number a client can check for
+> themselves.
+
+8.7 **Enterprise agreement.** An enterprise Client may agree written terms replacing this
+section entirely — for example a per-seat or subscription arrangement in which
 introductions are not fee-bearing. `[CONTRACTUAL]`
 
-8.7 **Process.** We act on evidence, not suspicion. You will be told what we found, and
-may respond before any charge or termination. Findings and responses are recorded.
+8.8 **Process.** We act on evidence, not suspicion. You will be told what we found and may
+respond before any invoice or restriction. Findings, responses and decisions are recorded.
 `[CONTRACTUAL]`
 
 ---
@@ -210,13 +259,33 @@ licence to review and evaluate it for approval purposes only. `[CONTRACTUAL]`
 
 9.2 **On release.** On **full release of escrow for the milestone**, the Expert assigns to
 the Client all right, title and interest in the deliverables produced for it, including
-copyright, with effect from release. `[CONTRACTUAL]`
+copyright in every work comprised in them, **for the full term of copyright, throughout
+the world, irrevocably, and free of any obligation to exercise the rights within any
+period.** The assignment takes effect on release without further act. The consideration
+for it is the milestone amount. `[CONTRACTUAL]`
 
-> [!NOTE]
-> `[COUNSEL]` Drafted as a **present assignment on payment**, not as "work made for hire".
-> That doctrine is US-specific, applies only to enumerated categories or employees, and
-> does not travel; a present assignment with a moral-rights waiver where permitted is the
-> portable construction. Counsel should confirm the wording for each launch jurisdiction.
+> [!CAUTION]
+> `[COUNSEL]` **Every element of 9.2 is there because the Copyright Act 1957 requires it.**
+> "Work made for hire" does not exist in Indian law and must never appear in this contract:
+> under section 17 the author is the first owner, and the employment exception does not
+> reach an independent contractor — so without a valid assignment the Expert keeps the
+> copyright, whatever the Client paid. Section 19 then imposes formalities, and the
+> defaults for anything left unsaid are hostile to the Client:
+>
+> | Section | Requirement | Default if the contract is silent |
+> | --- | --- | --- |
+> | 19(1) | Assignment in writing, signed by the assignor | Not a valid assignment at all |
+> | 19(2) | Must identify the work, the rights, the duration and the territory | — |
+> | 19(4) | Rights must be exercised within one year | The assignment **lapses** |
+> | 19(5) | Duration | Deemed **five years** |
+> | 19(6) | Territory | Deemed **India only** |
+>
+> Two questions for counsel. First, whether recorded electronic acceptance of the contract
+> satisfies "in writing signed by the assignor", given the Information Technology Act 2000 —
+> if it does not, a separate signed assignment is needed on release and the product must
+> produce one. Second, moral rights under section 57 subsist independently of the assignment
+> and a blanket waiver is of doubtful effect, so the Client must not be told the Expert has
+> given up attribution and integrity rights.
 
 9.3 **Partial payment.** Where a milestone is partially refunded or split by a dispute
 decision, ownership passes only to the extent released, and the parties must agree in
@@ -273,7 +342,7 @@ outcomes and payment decisions are made by people. An Agent may surface a signal
 never decides. `[ENFORCED]`
 
 10.7 **Reporting.** Security issues and suspected manipulation should be reported to
-security@flyrlink (address to be confirmed with `M-04`). We will not pursue good-faith
+security@flyrlink (address to be confirmed with `M-04a`). We will not pursue good-faith
 research that respects user privacy and avoids service disruption. `[CONTRACTUAL]`
 
 ---
@@ -308,9 +377,25 @@ resolution, then first-line triage, then a binding administrative decision.
 escrow, release and account standing. It does not oust any right you have at law.
 `[COUNSEL]`
 
-12.3 Disputes between you and Flyrlink: governing law, forum, and any arbitration or
-class-action provision are **to be settled by counsel on completion of `M-04`**. Nothing is
-stated here, because an unenforceable or unfair forum clause is worse than none.
+12.3 **Governing law.** These Terms and any dispute arising out of them are governed by
+the laws of **India**. `[CONTRACTUAL]`
+
+12.4 **Forum.** Subject to 12.5, the courts at the Company's registered office have
+exclusive jurisdiction. The city is fixed on incorporation (`M-04a`). `[COUNSEL]`
+
+12.5 **What we do not try to take away.** If you are a consumer, nothing in 12.4 affects
+your right to complain to a consumer commission, including where you live, and we will not
+argue that an arbitration clause bars you from doing so. `[COUNSEL]`
+
+> [!IMPORTANT]
+> `[COUNSEL]` **Do not add a mandatory arbitration clause without advice.** Indian courts
+> have held consumer disputes non-arbitrable, so against a consumer the clause achieves
+> nothing while signalling that we tried; and the Consumer Protection Act 2019 lets a
+> consumer file where they reside, which an exclusive-jurisdiction clause cannot override.
+> Arbitration under the Arbitration and Conciliation Act 1996 remains sensible for
+> **business-to-business and enterprise** contracts, where it should sit in that agreement
+> rather than in these Terms. Class actions are not a feature of Indian procedure in the
+> American sense, so a class-action waiver is imported noise — leave it out.
 
 ---
 
@@ -322,9 +407,21 @@ stated here, because an unenforceable or unfair forum clause is worse than none.
 13.2 We do not warrant any Expert's work, any Client's conduct, or the accuracy of any
 Agent output.
 
-13.3 **Liability cap and exclusions** — amount, carve-outs and consumer protections to be
-set by counsel (`M-04`). Consumer law in several jurisdictions overrides caps, so no
-figure is drafted here. `[COUNSEL]`
+13.3 **Liability cap.** Our aggregate liability to you for all claims in any 12-month
+period is limited to the **platform fees we actually earned from you in that period**. We
+exclude indirect, consequential and lost-profit claims. `[COUNSEL]`
+
+13.3.1 **What the cap never covers:** death or personal injury caused by our negligence;
+fraud or fraudulent misrepresentation; our own wilful misconduct; and anything that cannot
+be limited or excluded under Indian law. `[COUNSEL]`
+
+> [!NOTE]
+> `[COUNSEL]` A fee-based cap is the ordinary construction, and it is honest — we take 10%,
+> so we cap at 10%. But a consumer commission under the Consumer Protection Act 2019 can
+> award compensation irrespective of a contractual cap, and a term that strips a statutory
+> remedy risks being read as unfair. Counsel should confirm the cap survives against a
+> consumer, and should decide whether to state a floor so the cap is not near zero for a
+> user whose only engagement failed.
 
 13.4 You indemnify us against claims arising from your User Content, your breach of these
 Terms, your engagements, and your tax or employment-classification obligations.
@@ -334,43 +431,112 @@ Terms, your engagements, and your tax or employment-classification obligations.
 
 ## 14. Data protection
 
-14.1 Personal data is handled per the Privacy Policy (to be drafted; `M-05`).
+14.1 Personal data is handled per the Privacy Policy, which is drafted separately and is
+not yet written (`M-05`). These Terms do not substitute for it.
 
-14.2 **Already true of the system:** secrets are redacted before anything is written to
-the audit trail; audit records are append-only; administrative reads of audit data are
-scoped to a role's remit; and card numbers and payment credentials are never stored —
-only provider references. `[ENFORCED]`
+14.2 **Our role.** For the personal data you give us, Flyrlink is a **Data Fiduciary** under
+the Digital Personal Data Protection Act 2023 and you are a **Data Principal**. Your
+Payment Partner is a fiduciary in its own right for what it collects; we do not see or
+store card numbers or payment credentials. `[COUNSEL]`
 
-14.3 Data-subject rights, retention periods, international transfer mechanisms and
-processor terms must be completed with counsel before launch. `[BLOCKED — `M-04`, `M-05`]`
+14.3 **Already true of the system `[ENFORCED]`:** secrets are redacted before anything is
+written to the audit trail; audit records are append-only and cannot be edited or deleted
+by any role; administrative reads of audit data are scoped to a role's remit; and card
+numbers and payment credentials are never stored — only provider references.
+
+14.4 **Your rights.** You may ask for access to your personal data, correction or
+completion of it, and erasure where the purpose is served and no legal obligation requires
+us to keep it. You may withdraw consent, and withdrawing it will be as straightforward as
+giving it was. You may nominate someone to exercise your rights if you die or become
+incapacitated. Requests go to the Grievance Officer in §15. `[PROPOSED]`
+
+14.5 **Breach notification.** If a personal-data breach occurs we will notify the Data
+Protection Board and the affected Data Principals as the Act requires. `[PROPOSED]`
+
+14.6 **Retention.** We keep personal data while your account is active and afterwards only
+as long as a legal, tax, accounting or dispute obligation requires. Financial records and
+audit records are subject to statutory retention and are not deleted on request.
+`[COUNSEL]`
+
+14.7 **Transfers and payment data.** We may process data outside India except where the
+Central Government restricts a country. Payment system data stays subject to the Reserve
+Bank's storage requirements and is handled by the Payment Partner within them; we do not
+replicate it abroad. `[COUNSEL]`
+
+> [!WARNING]
+> **Open gaps, stated plainly.** None of 14.4 to 14.7 is implemented: there is no consent
+> notice, no data-principal request path, no breach-notification runbook and no retention
+> job. Clause 2.2 requires users to be 18 or over, but nothing verifies age — so a minor
+> who signs up puts us in the children's-data provisions we have not planned for. The DPDP
+> rules commence in phases, and counsel must confirm which obligations bind us on our launch
+> date. `[BLOCKED — `M-05`, plus implementation]`
 
 ---
 
-## 15. Changes and notices
+## 15. Grievance redressal, intermediary status and compliance contacts
 
-15.1 We may amend these Terms. Material changes take effect no less than **30 days** after
+15.1 **Intermediary status.** For content you post, we act as an intermediary and rely on
+the safe harbour in section 79 of the Information Technology Act 2000, subject to the
+diligence the Intermediary Guidelines require of us. That protection covers **your**
+content; it does not cover our own statements, our commission, or a decision one of our
+administrators makes. `[COUNSEL]`
+
+15.2 **Grievance Officer.** We publish the name, designation and contact address of a
+Grievance Officer in India, who will acknowledge a complaint and resolve it within the
+periods the Intermediary Guidelines and the Consumer Protection (E-Commerce) Rules 2020
+require. `[PROPOSED]` — the role is not appointed and the contact address is not published;
+both are launch blockers.
+
+15.3 **Nodal Contact Person.** We appoint a Nodal Contact Person for co-ordination with law
+enforcement, reachable at all times. `[PROPOSED]`
+
+15.4 **Marketplace duties.** We will not misrepresent a seller, will not manipulate price or
+search results to mislead, and will not refuse to take back or refund where the law requires
+it. Where an Expert is presented in a ranked shortlist, that ranking is produced
+algorithmically and we say so in the interface; the parameters are described in plain terms
+and no Expert can pay for position. `[ENFORCED]` for the no-paid-position part — there is no
+paid-placement feature — `[PROPOSED]` for published ranking parameters.
+
+> [!NOTE]
+> `[COUNSEL]` Ranking transparency is where consumer law and our matching engine meet.
+> The E-Commerce Rules prohibit unfair and deceptive practice today; amendments that would
+> have mandated explicit ranking-parameter disclosure have been proposed and not notified.
+> Counsel should monitor, and Product should assume disclosure is coming rather than retrofit
+> it.
+
+---
+
+## 16. Changes and notices
+
+16.1 We may amend these Terms. Material changes take effect no less than **30 days** after
 notice, except where a change is required by law or to address a security risk.
 `[CONTRACTUAL]`
 
-15.2 Changes do not apply retrospectively to an engagement already contracted; that
+16.2 Changes do not apply retrospectively to an engagement already contracted; that
 engagement keeps the version it was formed under. `[CONTRACTUAL]`
 
-15.3 Notices go to your registered email and are shown in the Platform.
+16.3 Notices go to your registered email and are shown in the Platform.
 
-15.4 The entity, registered address, governing law and contact addresses are completed on
-`M-04`.
+16.4 The company name, CIN, registered office, GSTIN, Grievance Officer and Nodal Contact
+Person are completed on `M-04a` and must appear here before publication.
 
 ---
 
-## 16. Open items for counsel
+## 17. Open items for counsel
+
+All are for **Indian counsel**. The first two decide whether the section they sit in works
+at all; the rest are calibration.
 
 | # | Clause | Question |
 | --- | --- | --- |
-| 1 | 8.1–8.5 | Are a 12-month restraint, fee recovery and a conversion buy-out enforceable in the launch jurisdiction, and against independent contractors? |
-| 2 | 9.2 | Confirm present assignment on payment, plus moral-rights treatment, per jurisdiction |
-| 3 | 12.3 | Governing law, forum, arbitration and class-action treatment |
-| 4 | 13.3–13.4 | Liability cap, consumer-law overrides, indemnity scope |
-| 5 | 5.3, 13.4 | Worker-classification and tax-withholding exposure by market |
-| 6 | 3.3, §14 | Whether any market requires stricter identity or data localisation |
-| 7 | Escrow §3 | Whether deemed acceptance after an inspection period is permitted for consumers |
-| 8 | Escrow §7 | Chargeback indemnity enforceability |
+| 1 | §8 | Does the introduction-fee construction avoid section 27 of the Contract Act, and is a fee at parity with commission reasonable compensation under section 74 rather than a penalty? |
+| 2 | 9.2 | Does recorded electronic acceptance satisfy section 19(1) of the Copyright Act — "in writing signed by the assignor"? If not, the product must generate a signed assignment on release |
+| 3 | 9.2 | Moral rights under section 57: what, if anything, may be waived, and what the Client must be told they are not getting |
+| 4 | 12.4–12.5 | Exclusive jurisdiction against a consumer, and whether to keep arbitration for enterprise contracts only |
+| 5 | 13.3 | Whether a fee-based cap survives a consumer commission, and whether to state a floor |
+| 6 | 5.3, 7.5, 13.4 | Worker classification, and the platform's withholding and reporting exposure — to be run jointly with the chartered accountant |
+| 7 | §14 | Which DPDP obligations bind us on the launch date, and the consequence of having no age verification behind clause 2.2 |
+| 8 | 15.1–15.4 | Intermediary diligence, Grievance Officer timelines, and whether ranking disclosure should ship ahead of any mandate |
+| 9 | Escrow §0 | Confirm the platform is not carrying on an activity that requires payment-aggregator authorisation |
+| 10 | Escrow §3 | Whether deemed acceptance on silence is safe under the Consumer Protection Act 2019 |
+| 11 | Escrow §7 | Chargeback indemnity enforceability against a consumer |

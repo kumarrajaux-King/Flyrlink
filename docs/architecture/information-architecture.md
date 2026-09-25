@@ -2,19 +2,19 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Draft for review.** §12 lists the decisions needed before build |
+| Status | **Draft for review.** §12.1 records what is settled; §12.2 lists what is still needed before build |
 | Owner | Product and Design, with Engineering |
 | Depends on | STEP 01 §6 (signed-off IA), Phase 5 preview components, Phase 6 lifecycle, Phase 8 control plane |
 | Blocked by | `M-06` Figma tokens · `M-07` mobile designs · `M-02` brand assets |
 | Related | `docs/content/landing-pages.md` · `docs/STEP-01-UX-PRODUCT-ARCHITECTURE.md` |
 
-> [!IMPORTANT]
-> **Route naming conflict, unresolved.** The brief proposes `/app/talent`, `/app/client`
-> and `/admin/governance`. STEP 01 §6 — signed off — uses `/projects`, `/expert`,
-> `/dashboard` and `/admin`, and those prefixes are already wired into `middleware.ts`.
-> This document keeps the **signed-off paths** and uses the brief's four zones as the
-> conceptual model. Renaming is a real migration (middleware, links, sitemaps, any shared
-> URLs) and needs a decision — §12, item 1.
+> [!NOTE]
+> **Route naming: settled.** The URLs are `/projects`, `/expert`, `/dashboard` and `/admin`,
+> as signed off in STEP 01 §6 and already wired into `middleware.ts`. The brief's
+> `/app/client`, `/app/talent` and `/admin/governance` are kept only as the **conceptual zone
+> names** in §2 — they are not URLs and must not appear in links, sitemaps or copy. No
+> migration is required, and none should be proposed without a reason stronger than naming
+> preference.
 
 ---
 
@@ -70,7 +70,7 @@
 | `/how-it-works` | Explain the engine | Editorial | Step rail, agent explainer, escrow diagram | Static | Yes |
 | `/trust` | Verification, escrow, disputes, audit | Editorial | Policy summary cards, FAQ | Static | Yes |
 | `/enterprise` | Governance-led pitch | Editorial | Control table, audit explainer, contact form | Static | Yes |
-| `/pricing` | Fees and what they buy | Editorial | Fee table, FAQ | Static (`M-03`) | Yes |
+| `/pricing` | Fees and what they buy | Editorial | Fee table, FAQ | Static — copy ready in `landing-pages.md` §6 | Yes |
 | `/for-experts` | Talent acquisition | Editorial | Expert hero, verification explainer, earnings explainer | Static | Yes |
 | `/legal/terms`, `/legal/privacy`, `/legal/escrow` | Published policy | Document | Table of contents, version and effective date | Markdown | Yes |
 | `/login`, `/register`, `/verify-email`, `/reset-password` | Authentication | Auth | Form, MFA challenge | Auth API | No (`noindex`) |
@@ -240,13 +240,34 @@ offers a role switcher.
 
 ---
 
-## 12. Decisions required
+## 12. Decisions
+
+### 12.1 Settled
+
+| # | Decision | Outcome |
+| --- | --- | --- |
+| 1 | Route naming | **Keep `/projects`, `/expert`, `/admin`.** The brief's zone names stay conceptual. No migration |
+| 2 | Pricing page | **Unblocked.** 10% flat, talent-side, no client platform fee. Copy is in `landing-pages.md` §6; the fee table is editorial, not computed |
+| 3 | Jurisdiction and payment surface | **India, INR, Razorpay domestic and Stripe cross-border.** The schema already defaults currency to `INR` and carries both providers |
+
+Three consequences for the IA, none of them cosmetic:
+
+- **Currency is INR by default and is never a free-text field.** The money component (A-04)
+  renders from integer minor units and the Indian digit grouping (`1,00,000`, not `100,000`)
+  must come from locale formatting, not hand-rolled separators.
+- **A payment surface must name the payment partner.** Wherever escrow is explained, the
+  copy says funds are held by the payment partner — see `escrow-and-disputes.md` §0. This
+  affects `/trust`, `/how-it-works`, the client funding screen and the expert earnings page.
+- **The expert earnings page grows a tax column.** Gross, platform fee, tax withheld, net.
+  The withholding itself is unbuilt, so the column renders as unavailable rather than zero —
+  a zero would be a false statement about a statutory deduction.
+
+### 12.2 Still required
 
 | # | Decision | Why it matters |
 | --- | --- | --- |
-| 1 | Keep `/projects`, `/expert`, `/admin` or migrate to `/app/client`, `/app/talent`, `/admin/governance` | STEP 01 is signed off and `middleware.ts` already matches the current prefixes. A rename is a migration, not a naming preference |
-| 2 | Public directory depth | Whether `/categories/[slug]` and `/services/[slug]` ship at launch or after, given index-quality risk from thin pages |
-| 3 | Review visibility | Whether reviews appear on public profiles at launch, given moderation capacity |
-| 4 | Pricing page | Cannot be written until `M-03` settles the commission model |
-| 5 | Mobile scope | `M-07`: no mobile designs exist. A-03 says mobile centres on approval actions; the approval screens must be designed first |
-| 6 | Enterprise surface | Whether `/enterprise` is a marketing page or a gated portal with its own IA |
+| 1 | Public directory depth | Whether `/categories/[slug]` and `/services/[slug]` ship at launch or after, given index-quality risk from thin pages |
+| 2 | Review visibility | Whether reviews appear on public profiles at launch, given moderation capacity |
+| 3 | Mobile scope | `M-07`: no mobile designs exist. A-03 says mobile centres on approval actions; the approval screens must be designed first |
+| 4 | Enterprise surface | Whether `/enterprise` is a marketing page or a gated portal with its own IA |
+| 5 | Grievance and compliance pages | Indian consumer and intermediary rules require a published Grievance Officer contact and marketplace disclosures. Which route carries them — `/trust`, a `/legal` index, or the footer — and who owns the content |
