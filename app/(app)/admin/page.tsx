@@ -8,16 +8,16 @@
  */
 
 import { DashboardScaffold } from '../../../components/app/dashboard-scaffold';
-import { dashboardForPath } from '../../../lib/authz/dashboards';
-import { requirePermissionOnPage } from '../../../lib/http/server-session';
+import { requireDashboard } from '../../../lib/http/server-session';
 
 export const dynamic = 'force-dynamic';
 
 const PATH = '/admin';
 
 export default async function Page() {
-  const dashboard = dashboardForPath(PATH)!;
-  const user = await requirePermissionOnPage(PATH, dashboard.permissions);
+  // Gated by the union of the roles that land here, so a role is never refused
+  // the surface `/dashboard` forwarded it to.
+  const { user, dashboard } = await requireDashboard(PATH);
 
   return (
     <DashboardScaffold

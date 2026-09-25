@@ -17,6 +17,7 @@
 import { redirect } from 'next/navigation';
 
 import { DashboardScaffold } from '../../../components/app/dashboard-scaffold';
+import { SignOutButton } from '../../../components/app/sign-out-button';
 import { primaryDashboard } from '../../../lib/authz/dashboards';
 import { prisma } from '../../../lib/db/client';
 import { requireUser } from '../../../lib/http/server-session';
@@ -31,7 +32,11 @@ export default async function DashboardPage({
   const user = await requireUser('/dashboard');
   const { denied } = await searchParams;
 
-  const destination = primaryDashboard(user.roles);
+  // `denied` means a page gate turned this viewer away. Forwarding them again
+  // would send them straight back to the page that refused them, and that page
+  // would return them here — an infinite redirect rather than an explanation.
+  // So a denial always stops at this screen, whatever role the viewer holds.
+  const destination = denied ? null : primaryDashboard(user.roles);
   if (destination && destination.path !== '/dashboard') redirect(destination.path);
 
   // Real counts for the client dashboard, scoped to this customer by the same
@@ -60,6 +65,53 @@ export default async function DashboardPage({
         'Recent activity across your engagements (Phase 9 backend is live)',
       ]}
     >
+      {/*
+        Identity, stated on the page rather than only in the shell. While the
+        product is being assembled this is the evidence that the session
+        resolved: the name, address and roles below were read from the database
+        on this request, not held in the browser.
+      */}
+      <section className="flex flex-wrap items-center gap-5 rounded-card bg-white p-6 shadow-card ring-1 ring-line">
+        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-brand-100 text-[15px] font-semibold text-brand-700">
+          {user.fullName
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0])
+            .join('')
+            .toUpperCase()}
+        </span>
+
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="text-[17px] font-semibold tracking-[-0.01em] text-ink">{user.fullName}</p>
+          <p className="truncate text-[14px] text-ink-muted">{user.email}</p>
+          <p className="flex flex-wrap items-center gap-1.5 pt-1">
+            {user.roles.length === 0 ? (
+              <span className="rounded-full bg-canvas-subtle px-2.5 py-1 text-[11px] font-semibold text-ink-subtle">
+                No role
+              </span>
+            ) : (
+              user.roles.map((role) => (
+                <span
+                  key={role}
+                  className="rounded-full bg-canvas-subtle px-2.5 py-1 text-[11px] font-semibold text-ink-muted"
+                >
+                  {role.replace(/_/g, ' ').toLowerCase()}
+                </span>
+              ))
+            )}
+            {user.mfaEnabled ? (
+              <span className="rounded-full bg-positive-soft px-2.5 py-1 text-[11px] font-semibold text-positive">
+                MFA on
+              </span>
+            ) : null}
+          </p>
+        </div>
+
+        <SignOutButton className="ml-auto bg-navy-800 text-white hover:bg-navy-900" />
+      </section>
+
       {denied ? (
         <p
           role="alert"

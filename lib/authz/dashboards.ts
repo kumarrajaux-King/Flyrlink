@@ -114,7 +114,31 @@ export function landingPath(roles: readonly RoleName[]): string {
   return primaryDashboard(roles)?.path ?? '/dashboard';
 }
 
-/** The dashboard registered at a path, for a screen checking its own gate. */
-export function dashboardForPath(path: string): Dashboard | null {
-  return DASHBOARDS.find((dashboard) => dashboard.path === path) ?? null;
+/**
+ * The dashboard at a path, for the roles the viewer holds.
+ *
+ * ADMIN and SUPER_ADMIN share `/admin`, so "the dashboard at this path" is
+ * ambiguous without knowing who is asking — and answering with the first entry
+ * gave a plain ADMIN the SUPER_ADMIN description, and the SUPER_ADMIN gate.
+ */
+export function dashboardForPath(path: string, roles: readonly RoleName[] = []): Dashboard | null {
+  const atPath = DASHBOARDS.filter((dashboard) => dashboard.path === path);
+  return atPath.find((dashboard) => roles.includes(dashboard.role)) ?? atPath[0] ?? null;
+}
+
+/**
+ * Every permission that admits a viewer to a path.
+ *
+ * The union across the roles that land there. Using one role's list as the gate
+ * locks the others out of their own landing page — and because `/dashboard`
+ * forwards by role, being locked out of your own landing page is an infinite
+ * redirect, not an error message.
+ */
+export function permissionsForDashboardPath(path: string): readonly Permission[] {
+  const permissions = new Set<Permission>();
+  for (const dashboard of DASHBOARDS) {
+    if (dashboard.path !== path) continue;
+    for (const permission of dashboard.permissions) permissions.add(permission);
+  }
+  return [...permissions];
 }

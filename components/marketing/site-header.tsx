@@ -5,6 +5,10 @@
  * CTA), adapted to the product's four entry points. Transparent over the hero,
  * it gains a translucent white ground and a hairline once the page scrolls.
  * Below `lg` the links move into a full-height sheet.
+ *
+ * "Sign In" is a real link to `/login`. Its styling is unchanged from the
+ * preview build — only the behaviour is, from a notice saying the screen did
+ * not exist to the screen that now does.
  */
 
 import { Menu, X } from 'lucide-react';
@@ -14,8 +18,6 @@ import { cn } from '../../lib/ui/cn';
 import { ButtonArrow, ButtonLink } from '../ui/button';
 import { Container } from '../ui/container';
 import { Logo } from '../ui/logo';
-import { PreviewActionButton } from './preview-action';
-import { PREVIEW_MESSAGES } from './preview-events';
 
 /**
  * Primary navigation.
@@ -91,9 +93,9 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto hidden items-center gap-1.5 lg:flex">
-          <PreviewActionButton variant="ghost" size="md" message={PREVIEW_MESSAGES.signIn}>
+          <ButtonLink href="/login" variant="ghost" size="md">
             Sign In
-          </PreviewActionButton>
+          </ButtonLink>
           <ButtonLink href="#describe" size="md" className="pr-4">
             Post a Project
             <ButtonArrow />
@@ -138,9 +140,9 @@ export function SiteHeader() {
               <ButtonLink href="#describe" size="lg" onClick={() => setOpen(false)}>
                 Post a Project
               </ButtonLink>
-              <PreviewActionButton variant="secondary" size="lg" message={PREVIEW_MESSAGES.signIn}>
+              <ButtonLink href="/login" variant="secondary" size="lg" onClick={() => setOpen(false)}>
                 Sign In
-              </PreviewActionButton>
+              </ButtonLink>
             </div>
           </Container>
         </div>

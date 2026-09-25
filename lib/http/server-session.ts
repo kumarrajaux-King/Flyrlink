@@ -18,6 +18,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+import { dashboardForPath, permissionsForDashboardPath } from '../authz/dashboards';
 import { type Permission, type RoleName, permissionsForRoles } from '../authz/roles';
 import { prisma } from '../db/client';
 import { type ResolvedSession, resolveSession } from '../../services/auth/session-service';
@@ -101,4 +102,19 @@ export async function requirePermissionOnPage(
     redirect('/dashboard?denied=1');
   }
   return user;
+}
+
+/**
+ * Gate a dashboard by its own path.
+ *
+ * The permissions come from the union of the roles that land there, so a role
+ * is never refused the surface `/dashboard` forwards it to. Returns the viewer
+ * alongside the dashboard entry that matches one of their roles, so the screen
+ * describes itself in their terms.
+ */
+export async function requireDashboard(
+  path: string,
+): Promise<{ user: CurrentUser; dashboard: NonNullable<ReturnType<typeof dashboardForPath>> }> {
+  const user = await requirePermissionOnPage(path, permissionsForDashboardPath(path));
+  return { user, dashboard: dashboardForPath(path, user.roles)! };
 }

@@ -12,6 +12,7 @@ import {
   DASHBOARDS,
   dashboardForPath,
   landingPath,
+  permissionsForDashboardPath,
   primaryDashboard,
   reachableDashboards,
 } from '../../lib/authz/dashboards';
@@ -82,5 +83,54 @@ describe('dashboard routing', () => {
   it('resolves a path back to its dashboard', () => {
     expect(dashboardForPath('/admin/finance')?.role).toBe('FINANCE');
     expect(dashboardForPath('/nope')).toBeNull();
+  });
+
+  it('resolves a shared path to the entry matching the viewer', () => {
+    // ADMIN and SUPER_ADMIN share `/admin`; answering with the first entry gave
+    // a plain ADMIN the SUPER_ADMIN gate, and locked them out of their own
+    // landing page.
+    expect(dashboardForPath('/admin', ['ADMIN'])?.role).toBe('ADMIN');
+    expect(dashboardForPath('/admin', ['SUPER_ADMIN'])?.role).toBe('SUPER_ADMIN');
+    expect(dashboardForPath('/admin', ['CUSTOMER', 'ADMIN'])?.role).toBe('ADMIN');
+  });
+
+  it('gates a shared path on the union of the roles that land there', () => {
+    const admin = permissionsForDashboardPath('/admin');
+    expect(admin).toContain('user:read:any');
+    expect(admin).toContain('user:role:assign:any');
+  });
+
+  /**
+   * The invariant that matters, because breaking it is not an error message.
+   *
+   * `/dashboard` forwards by role. If the surface it forwards to then refuses
+   * that role, the refusal comes back to `/dashboard`, which forwards again:
+   * the browser stops with ERR_TOO_MANY_REDIRECTS rather than saying anything.
+   */
+  it('never sends a role to a surface that would refuse it', () => {
+    for (const role of ROLE_NAMES) {
+      const path = landingPath([role]);
+      const gate = permissionsForDashboardPath(path);
+      const held = permissionsForRoles([role]);
+      // `/dashboard` is the fallback and has its own entry; every other path
+      // must admit the role routed to it.
+      expect(gate.some((permission) => held.has(permission)), `${role} → ${path}`).toBe(true);
+    }
+  });
+
+  it('holds that invariant for multi-role accounts too', () => {
+    for (const roles of [
+      ['CUSTOMER', 'ADMIN'],
+      ['CUSTOMER', 'SUPER_ADMIN'],
+      ['EXPERT', 'FINANCE'],
+      ['CUSTOMER', 'EXPERT'],
+      ['EXPERT', 'SUPPORT'],
+      ['CUSTOMER', 'VERIFICATION_MANAGER'],
+    ] as RoleName[][]) {
+      const path = landingPath(roles);
+      const gate = permissionsForDashboardPath(path);
+      const held = permissionsForRoles(roles);
+      expect(gate.some((permission) => held.has(permission)), `${roles.join('+')} → ${path}`).toBe(true);
+    }
   });
 });
