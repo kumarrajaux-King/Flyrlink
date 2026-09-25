@@ -75,6 +75,22 @@ export const AUDIT_ACTIONS = {
   ADMIN_INTERVENTION_REQUESTED: 'admin.intervention.requested',
   ADMIN_INTERVENTION_COMPLETED: 'admin.intervention.completed',
   ADMIN_ACTION_DENIED: 'admin.action.denied',
+  // Messaging and collaboration (Phase 9)
+  //
+  // Sending a message is NOT audited: the message row is already the record,
+  // and duplicating every line of every conversation into the audit log would
+  // bury the events an operator is actually looking for. What is audited is
+  // everything that changes the shape of the record — a thread opening, someone
+  // leaving it, a message being rewritten or withdrawn — and every time
+  // platform staff read correspondence they are not party to.
+  CONVERSATION_OPENED: 'messaging.conversation.opened',
+  CONVERSATION_ARCHIVED: 'messaging.conversation.archived',
+  CONVERSATION_MEMBER_LEFT: 'messaging.conversation.member_left',
+  CONVERSATION_READ_BY_OVERSIGHT: 'messaging.conversation.oversight_read',
+  MESSAGE_EDITED: 'messaging.message.edited',
+  MESSAGE_DELETED: 'messaging.message.deleted',
+  ATTACHMENT_UPLOADED: 'messaging.attachment.uploaded',
+  ATTACHMENT_DELETED: 'messaging.attachment.deleted',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

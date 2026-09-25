@@ -12,7 +12,7 @@ Maintained continuously. Updated at the end of every phase.
 | 6 | Customer Project Marketplace | ✅ **Lifecycle backend complete — awaiting architecture review.** UI not started (blocked by `M-06`/`M-07`) | `STEP-06-LIFECYCLE.md`, `domain/*/state-machine.ts`, `services/lifecycle/`, 4 API routes |
 | 7 | AI Agentic System | ✅ **Implemented — awaiting review** | `AI-AGENT-ARCHITECTURE.md`, `ai/`, `services/ai/`, 7 API routes |
 | 8 | Admin Control Plane | ✅ **Approved** (2026-09-25), review follow-ups applied. UI not started | `STEP-08-ADMIN-OPERATIONS.md`, `lib/authz/admin-policy.ts`, `services/admin/`, 47 API routes |
-| 9 | Messaging + Collaboration | ⬜ Not started | |
+| 9 | Messaging + Collaboration | ✅ **Backend complete — awaiting review.** UI not started (blocked by `M-06`/`M-07`) | `STEP-09-MESSAGING-COLLABORATION.md`, `domain/{messaging,notification,attachment}/`, `services/{messaging,notification}/`, `lib/storage/`, 13 API route files |
 | 10 | Payments, Transactions, Commission, Refunds, Payouts | ⬜ Not started — rate and geography settled; **blocked by `M-04a` provider contracting and `M-04b` tax sign-off** | `PAYMENT-ARCHITECTURE.md` |
 | 11 | Ratings + Reviews + Reputation | ⬜ Not started | |
 | 12 | Integrations + Notifications | ⬜ Not started | |
@@ -214,7 +214,55 @@ experiments reverted). Real PostgreSQL via `docker-compose.yml` is the answer; t
 2,010 tests, 6 added. Typecheck, lint and a clean `next build` pass. No schema change and no permission
 change.
 
+### 2026-09-25 — Phase 9 messaging and collaboration backend delivered
+
+Conversations (project, contract, team, direct), messages, attachments and notifications, plus the
+bridge that makes a lifecycle transition tell the parties about it. **No schema change** — STEP 3 had
+already modelled all six tables — and **no RBAC change** (still 71 permissions).
+
+**Reading and posting are different authorities.** `message:read:any` is oversight: ADMIN and SUPPORT
+can read a thread to investigate a dispute and cannot post into it, because a message in a project
+thread is attributable to a party and platform staff are not one. The one exception is `SUPPORT` in a
+`SUPPORT` thread, where `ticket:respond:any` says so by name. Every oversight read is audited at NOTICE
+severity; a party reading their own thread is not.
+
+**One change to Phase 6 code.** The engine gained a five-line call after its status write.
+Which event notifies whom is a pure table (`domain/notification/lifecycle-map.ts`, 36 events), so the
+four lifecycle services were not touched. Notifications are recorded inside the transition's own
+transaction — a milestone that moved to SUBMITTED and a customer who was never told are an inconsistent
+pair — while external delivery happens after commit, so no provider call is made under a row lock.
+
+**Attachments are a three-step upload**: reserve, upload straight to storage, then confirm what actually
+landed against what was declared. An unconfirmed attachment can never reach a thread. Storage keys are
+derived entirely from server-controlled values, so no client can choose where its bytes land.
+
+**Notification preferences are honoured, with ten exceptions** — money movement, disputes, verification
+decisions, submissions, revisions and AI approvals keep their in-app record whatever the user sets. An
+opt-out is still stored rather than refused, and takes effect everywhere it can.
+
+`sendNotification` (Phase 7) now routes through the notification service, so an agent cannot reach a
+channel a recipient switched off. No tool posts a message into a conversation; `postAgentMessage` exists
+server-side with nothing exposing it (open decision C-05).
+
+2,131 tests, 121 added. Typecheck, lint and a clean `next build` pass.
+
+**Run against real PostgreSQL 16.13** — the first phase to do so, using the PostgreSQL the cloud
+container already had rather than Docker or the PGlite bridge. The intermittent `ai-orchestrator.test.ts`
+connection failures reported in `STEP-08-ADMIN-OPERATIONS.md` §15 **did not recur**, confirming the Phase 8
+diagnosis that they were the Docker-less bridge and not application code.
+
 ## Open decisions requiring sign-off
+
+### STEP 09 — messaging and collaboration decisions
+| ID | Decision |
+| --- | --- |
+| C-01 | Oversight roles read threads but never post — only `SUPPORT` in a `SUPPORT` thread may write |
+| C-02 | A member who leaves loses access to the thread's history (A-13) |
+| C-03 | A direct thread requires a shared engagement (A-14) |
+| C-04 | Ten notification types keep their in-app record regardless of preference |
+| C-05 | No AI tool posts into a conversation; the service exists, nothing exposes it |
+| C-06 | 15-minute edit window; 30 messages per minute per author per thread |
+| A-13..A-16 | Messaging assumptions — see `STEP-09-MESSAGING-COLLABORATION.md` §14 |
 
 ### STEP 04 — authentication decisions
 | ID | Decision |
@@ -277,3 +325,5 @@ change.
 | M-04a | **Legal entity** — incorporation, CIN, registered office, GSTIN, Grievance Officer and Nodal Contact Person; provider contracting including the permitted escrow hold window | Publishing the Terms and the escrow policy; Phase 10 |
 | M-04b | **Chartered accountant sign-off** on GST, TDS u/s 194-O and GST TCS u/s 52 mechanics | Tax withholding in Phase 10 — see `docs/policies/escrow-and-disputes.md` §6.2 |
 | M-05 | Legal copy (ToS, privacy, contract template) | Phases 10, 14 — requires legal review |
+| M-09 | **Object storage** — bucket, endpoint and credentials (S3/R2/GCS) | Real attachment storage. The adapter interface is written; only the remote implementation is missing |
+| M-10 | **Malware scanning service** | Scanning uploads between the upload and its confirmation. Type, extension and size validation are in place; content is not inspected |

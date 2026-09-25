@@ -54,3 +54,8 @@ next-env.d.ts
 *.tsbuildinfo
 .tmp-fix/
 .tmp-doc/
+
+# Development object storage (lib/storage/provider.ts) and test scratch roots
+.storage
+.storage-test-*
+.storage-routes-*

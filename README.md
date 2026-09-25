@@ -2,7 +2,7 @@
 
 A production-grade marketplace where the client describes an **outcome**, and the platform understands the requirement, plans the project, finds the right expert or team, coordinates execution, monitors risk, and manages the commercial workflow.
 
-> **Status: backends for Phases 4, 6, 7 and 8 complete; Phase 8 approved.** The database (59 models) is migrated and seeded. Authentication + RBAC, the AI agentic system, the Project/Contract/Milestone/Payment state machines and the admin control plane are implemented and tested (2,010 tests). The only UI is a sample home page preview; the rest is blocked on design inputs (`M-06`, `M-07`). See [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md).
+> **Status: backends for Phases 4, 6, 7, 8 and 9 complete; Phase 8 approved.** The database (59 models) is migrated and seeded. Authentication + RBAC, the AI agentic system, the Project/Contract/Milestone/Payment state machines, the admin control plane and messaging/notifications are implemented and tested (2,131 tests, against real PostgreSQL). The only UI is a sample home page preview; the rest is blocked on design inputs (`M-06`, `M-07`). See [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md).
 
 ## Documentation
 
@@ -19,6 +19,7 @@ Read in this order:
 | [`docs/AI-AGENT-ARCHITECTURE.md`](docs/AI-AGENT-ARCHITECTURE.md) | Agents, tools, policy engine, human approval |
 | [`docs/STEP-06-LIFECYCLE.md`](docs/STEP-06-LIFECYCLE.md) | Project, contract, milestone and payment state machines; transition services |
 | [`docs/STEP-08-ADMIN-OPERATIONS.md`](docs/STEP-08-ADMIN-OPERATIONS.md) | Admin control plane: capabilities, governed changes, interventions, audit |
+| [`docs/STEP-09-MESSAGING-COLLABORATION.md`](docs/STEP-09-MESSAGING-COLLABORATION.md) | Conversations, messages, attachments, notifications, the lifecycle→notification bridge |
 | [`docs/architecture/information-architecture.md`](docs/architecture/information-architecture.md) | Sitemap, content model, SEO and metadata rules, layouts and components |
 | [`docs/content/landing-pages.md`](docs/content/landing-pages.md) | Marketing copy and microcopy, with the claims register that gates publication |
 | [`docs/policies/terms-of-service.md`](docs/policies/terms-of-service.md) | Draft Terms of Service for **India** — **not in force**, pending Indian counsel review (`M-05`) |
@@ -62,6 +63,7 @@ Dependencies are added phase by phase, each justified in that phase's report.
 - Payment truth comes from **verified webhooks**, never a browser redirect.
 - AI agents reach data **only** through an authorized, validated, audited tool layer.
 - Financial records are **append-only**; corrections are compensating entries.
+- Oversight roles **read** private correspondence, audited, and never post into it.
 - **No secrets** in source, git, client bundles, markdown, logs, or AI prompts.
 
 The full list is in the [blueprint](docs/PRODUCT-BLUEPRINT.md#5-non-negotiables).
@@ -71,6 +73,8 @@ The full list is in the [blueprint](docs/PRODUCT-BLUEPRINT.md#5-non-negotiables)
 | # | Missing | Blocks |
 | --- | --- | --- |
 | M-06 | **Figma MCP access** (quota exhausted) | Exact design tokens for all UI. The UI will not be invented. |
+| M-09 | **Object storage** (bucket, endpoint, credentials) | Real attachment storage — the adapter is written, the remote implementation is not |
+| M-10 | **Malware scanning service** | Scanning uploaded files |
 | M-07 | **Mobile designs** (Figma is desktop-only) | Responsive UI work |
 | M-04a | **Legal entity and provider contracting** — incorporation, CIN, GSTIN, Grievance Officer, and the escrow hold window Razorpay will permit | Publishing the Terms and escrow policy; Phase 10 |
 | M-04b | **Tax sign-off** — GST, TDS u/s 194-O, GST TCS u/s 52 | Withholding in Phase 10 |

@@ -27,7 +27,16 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE_NAME } from './lib/http/session-cookie';
 
 /** Page prefixes that are pointless to render without a session. */
-const AUTHENTICATED_PREFIXES = ['/dashboard', '/projects', '/expert', '/admin', '/settings'];
+const AUTHENTICATED_PREFIXES = [
+  '/dashboard',
+  '/projects',
+  '/expert',
+  '/admin',
+  '/settings',
+  // Phase 9 surfaces.
+  '/messages',
+  '/notifications',
+];
 
 export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
