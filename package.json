@@ -25,7 +25,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:dev-server": "node scripts/pglite-server.mjs",
-    "db:verify": "prisma migrate status"
+    "db:verify": "prisma migrate status",
+    "walkthrough": "tsx scripts/api-walkthrough.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.124.0",
