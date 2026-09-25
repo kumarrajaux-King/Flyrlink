@@ -31,6 +31,7 @@ export const PREVIEW_MESSAGES = {
   browseExperts: 'The full Browse Experts screen is a later phase. The profiles on this page are a preview.',
   postProject: 'Posting a project opens with the project flow. Nothing was sent or saved.',
   becomeExpert: 'Expert applications open with expert onboarding. Nothing was submitted.',
+  enterpriseContact: 'The enterprise contact form arrives with /enterprise. Nothing was sent.',
   expertProfile: 'Expert profile pages arrive with Browse Experts.',
   newsletter: 'Newsletter sign-up is not connected in this preview. Nothing was sent or stored.',
   footerLink: 'That page is not part of the Home Page preview.',

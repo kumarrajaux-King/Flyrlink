@@ -17,11 +17,19 @@ import { Logo } from '../ui/logo';
 import { PreviewActionButton } from './preview-action';
 import { PREVIEW_MESSAGES } from './preview-events';
 
+/**
+ * Primary navigation.
+ *
+ * These are the public-zone destinations from the information architecture
+ * (§3) — how it works, experts, trust, pricing, for experts — pointed at the
+ * sections of this page that stand in for them until those routes are built.
+ */
 const NAV = [
-  { label: 'Discover Experts', href: '#experts' },
-  { label: 'Find Services', href: '#categories' },
   { label: 'How It Works', href: '#how-it-works' },
-  { label: 'Become an Expert', href: '#become-an-expert' },
+  { label: 'Experts', href: '#experts' },
+  { label: 'Verification', href: '#verification' },
+  { label: 'Escrow', href: '#escrow' },
+  { label: 'Pricing', href: '#pricing' },
 ] as const;
 
 export function SiteHeader() {
