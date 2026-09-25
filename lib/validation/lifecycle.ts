@@ -1,6 +1,11 @@
 /**
  * Zod schemas for the lifecycle transition API.
  *
+ * `confirm` exists for one purpose: a caller acting on platform authority must
+ * confirm a HIGH or CRITICAL transition deliberately, against the status they
+ * reviewed (see `lib/http/lifecycle.ts`). A party acting on their own
+ * engagement never needs it.
+ *
  * `strictObject` throughout, so a client cannot smuggle in anything the server
  * decides: not the actor (always the session's human), not a webhook event id,
  * not a refunded amount, not a failure code. Those exist only for server-side
@@ -30,24 +35,28 @@ export const transitionParamsSchema = z.strictObject({
 export const projectTransitionSchema = z.strictObject({
   event: z.enum(PROJECT_EVENTS),
   expectedStatus: z.enum(PROJECT_STATES).optional(),
+  confirm: z.boolean().optional(),
   params: transitionParamsSchema.optional(),
 });
 
 export const contractTransitionSchema = z.strictObject({
   event: z.enum(CONTRACT_EVENTS),
   expectedStatus: z.enum(CONTRACT_STATES).optional(),
+  confirm: z.boolean().optional(),
   params: transitionParamsSchema.optional(),
 });
 
 export const milestoneTransitionSchema = z.strictObject({
   event: z.enum(MILESTONE_EVENTS),
   expectedStatus: z.enum(MILESTONE_STATES).optional(),
+  confirm: z.boolean().optional(),
   params: transitionParamsSchema.optional(),
 });
 
 export const paymentTransitionSchema = z.strictObject({
   event: z.enum(PAYMENT_EVENTS),
   expectedStatus: z.enum(PAYMENT_STATES).optional(),
+  confirm: z.boolean().optional(),
   params: transitionParamsSchema.optional(),
 });
 

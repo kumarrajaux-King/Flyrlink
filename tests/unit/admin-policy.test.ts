@@ -111,11 +111,13 @@ describe('admin capability matrix', () => {
     }
   });
 
-  it('follows STEP 02 §13 for SUPPORT and VERIFICATION_MANAGER: no MFA gate (open decision A-08)', () => {
+  it('gates VERIFICATION_MANAGER on MFA (A-08, resolved at the Phase 8 review) and leaves SUPPORT open', () => {
+    expect(
+      authorizeCapability(actor(['VERIFICATION_MANAGER'], { mfaSatisfied: false }), 'VERIFICATIONS_DECIDE'),
+    ).toMatchObject({ allowed: false, reason: 'MFA_REQUIRED' });
+    expect(authorizeCapability(actor(['VERIFICATION_MANAGER']), 'VERIFICATIONS_DECIDE').allowed).toBe(true);
+    // SUPPORT is read-mostly and decides nothing, so it stays outside the gate.
     expect(authorizeCapability(actor(['SUPPORT'], { mfaSatisfied: false }), 'DISPUTES_READ').allowed).toBe(true);
-    expect(authorizeCapability(actor(['VERIFICATION_MANAGER'], { mfaSatisfied: false }), 'VERIFICATIONS_DECIDE').allowed).toBe(
-      true,
-    );
   });
 
   it('reports a missing grant ahead of MFA, and refuses an inactive account first', () => {

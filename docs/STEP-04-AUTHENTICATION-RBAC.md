@@ -127,11 +127,14 @@ day-to-day admin access cannot escalate itself or change the platform's
 economics. `SUPER_ADMIN_ONLY_PERMISSIONS` is a second gate on top of the role
 matrix, so even a role that lists the permission is refused without SUPER_ADMIN.
 
-**MFA-required roles:** `ADMIN`, `SUPER_ADMIN`, `FINANCE` (STEP 02 §13 exactly).
+**MFA-required roles:** `ADMIN`, `SUPER_ADMIN`, `FINANCE` (STEP 02 §13), plus
+`VERIFICATION_MANAGER` since the Phase 8 review.
 
-> `SUPPORT` and `VERIFICATION_MANAGER` are privileged but not MFA-gated, because
-> the approved spec named only three roles. Both can read customer and project
-> data, so extending MFA to them is worth a decision — raised as `A-08` (§16).
+> **A-08 resolved (Phase 8 review).** `VERIFICATION_MANAGER` is now MFA-gated:
+> verification is a trust boundary, and granting or withdrawing a verified badge
+> is a HIGH-risk decision that should not be made from a session that never
+> passed a second factor. `SUPPORT` stays outside the gate — it is read-mostly
+> and decides nothing.
 
 ## 7. The authorization decision (`lib/authz/authorize.ts`)
 
@@ -305,7 +308,7 @@ so `npm test` passes on a machine without one.
 | ID | Decision | Default taken |
 | --- | --- | --- |
 | T-02 (revised) | First-party sessions instead of Auth.js v5 | **Approved** — see §3 |
-| A-08 | MFA not required for `SUPPORT` / `VERIFICATION_MANAGER` | Follows STEP 02 §13 exactly; both read customer data, so extending it is worth considering |
+| A-08 | MFA for `VERIFICATION_MANAGER` | **Resolved at the Phase 8 review: required.** `SUPPORT` remains outside the gate |
 | A-09 | Enumeration-safe registration over "email already registered" | Safer default implemented; a UX call |
 | A-10 | Unverified accounts may authenticate but are refused by `authorize` (`ACCOUNT_INACTIVE`) | Clearer than a blanket login failure, and lets the UI prompt to re-send verification |
 | A-11 | Session TTL 7 days, reset token 30 minutes | Conventional; adjust to risk appetite |
