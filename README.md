@@ -2,7 +2,7 @@
 
 A production-grade marketplace where the client describes an **outcome**, and the platform understands the requirement, plans the project, finds the right expert or team, coordinates execution, monitors risk, and manages the commercial workflow.
 
-> **Status: backends for Phases 4, 6 (lifecycle) and 7 complete — awaiting review.** The database (59 models) is migrated and seeded. Authentication + RBAC, the AI agentic system, and the Project/Contract/Milestone/Payment state machines are implemented and tested (1,724 tests). No UI has been built; it is blocked on design inputs (`M-06`, `M-07`). See [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md).
+> **Status: backends for Phases 4, 6, 7 and 8 complete; Phase 8 approved.** The database (59 models) is migrated and seeded. Authentication + RBAC, the AI agentic system, the Project/Contract/Milestone/Payment state machines and the admin control plane are implemented and tested (2,010 tests). The only UI is a sample home page preview; the rest is blocked on design inputs (`M-06`, `M-07`). See [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md).
 
 ## Documentation
 
@@ -18,6 +18,11 @@ Read in this order:
 | [`docs/STEP-05-FIGMA-ARCHITECTURE-MAPPING.md`](docs/STEP-05-FIGMA-ARCHITECTURE-MAPPING.md) | Figma → architecture mapping (analysis only) |
 | [`docs/AI-AGENT-ARCHITECTURE.md`](docs/AI-AGENT-ARCHITECTURE.md) | Agents, tools, policy engine, human approval |
 | [`docs/STEP-06-LIFECYCLE.md`](docs/STEP-06-LIFECYCLE.md) | Project, contract, milestone and payment state machines; transition services |
+| [`docs/STEP-08-ADMIN-OPERATIONS.md`](docs/STEP-08-ADMIN-OPERATIONS.md) | Admin control plane: capabilities, governed changes, interventions, audit |
+| [`docs/architecture/information-architecture.md`](docs/architecture/information-architecture.md) | Sitemap, content model, SEO and metadata rules, layouts and components |
+| [`docs/content/landing-pages.md`](docs/content/landing-pages.md) | Marketing copy and microcopy, with the claims register that gates publication |
+| [`docs/policies/terms-of-service.md`](docs/policies/terms-of-service.md) | Draft Terms of Service — **not in force**, pending counsel review (`M-05`) |
+| [`docs/policies/escrow-and-disputes.md`](docs/policies/escrow-and-disputes.md) | Escrow lifecycle, dispute triage, fees, ledger and payout governance |
 | [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md) | Phase status, open decisions, blocking inputs |
 
 ## The three experiences
