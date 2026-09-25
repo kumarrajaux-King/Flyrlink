@@ -473,7 +473,7 @@ Master spec §35 forbids unnecessary packages. Each addition must be justified i
 | AI cost per project unbounded | Margin erosion | Per-run cost recording, caching, effort tuning, per-project budget caps |
 | Agent output invalid or hallucinated | Corrupt data | Zod validation before persistence; failed runs never partially write |
 | Webhook replay / double payment | Financial loss | Unique provider event ID + idempotency keys + append-only ledger |
-| Payment provider mismatch to geography | Blocked launch | Provider abstraction; final choice deferred to `M-04` |
+| Payment provider mismatch to geography | Blocked launch | Provider abstraction; **resolved 2026-09-25** — Razorpay domestic, Stripe cross-border, India/INR |
 | Hostinger cannot run Node | Blocked deployment | No host-specific dependencies; verify runtime before committing |
 | Scope creep across 15 phases | Never shipping | Phase gates with explicit sign-off (master spec §35, §45) |
 | Figma absent | UI cannot be built | Blocked at `M-01`; UI will not be invented |

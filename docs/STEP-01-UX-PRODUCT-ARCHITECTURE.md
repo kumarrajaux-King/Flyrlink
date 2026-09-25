@@ -321,8 +321,10 @@ WCAG 2.2 AA as the working target. Keyboard operability for every interactive co
 | --- | --- | --- | --- |
 | M-01 | **Figma file/URL** | Phase 5+ (all UI implementation) | Supply the Figma link. The Figma MCP connector is available in this session. Until then, **the final UI will not be invented** (master spec §42). |
 | M-02 | Brand identity assets (logo, final palette, type) | Design tokens | Supply, or confirm they come from Figma |
-| M-03 | Commission model (rates, tiers) | Phase 10 | Business decision |
-| M-04 | Target launch geography + legal entity | Payment provider selection, currency, tax | Business decision |
+| ~~M-03~~ | ~~Commission model~~ | — | **RESOLVED 2026-09-25: 10% flat, talent-side, no client platform fee.** Configured as a versioned `CommissionRule` (1000 basis points) |
+| ~~M-04~~ | ~~Target launch geography~~ | — | **RESOLVED 2026-09-25: India, INR, Razorpay domestic + Stripe cross-border.** Both already values of `PaymentProviderName`; `defaultCurrency` is already `INR` |
+| M-04a | Legal entity, provider contracting and compliance contacts | Publishing the Terms and escrow policy; Phase 10 | Incorporate, then contract with Razorpay — including the permitted escrow hold window |
+| M-04b | Tax mechanics sign-off (GST, TDS 194-O, GST TCS 52) | Withholding in Phase 10 | Chartered accountant |
 | M-05 | Legal copy (ToS, privacy, contract template) | Phase 10/14 | Requires legal review — not AI-authored |
 
 ## 18. Assumptions register

@@ -13,7 +13,7 @@ Maintained continuously. Updated at the end of every phase.
 | 7 | AI Agentic System | ✅ **Implemented — awaiting review** | `AI-AGENT-ARCHITECTURE.md`, `ai/`, `services/ai/`, 7 API routes |
 | 8 | Admin Control Plane | ✅ **Approved** (2026-09-25), review follow-ups applied. UI not started | `STEP-08-ADMIN-OPERATIONS.md`, `lib/authz/admin-policy.ts`, `services/admin/`, 47 API routes |
 | 9 | Messaging + Collaboration | ⬜ Not started | |
-| 10 | Payments, Transactions, Commission, Refunds, Payouts | ⬜ Not started — **blocked by `M-03`, `M-04`** | `PAYMENT-ARCHITECTURE.md` |
+| 10 | Payments, Transactions, Commission, Refunds, Payouts | ⬜ Not started — rate and geography settled; **blocked by `M-04a` provider contracting and `M-04b` tax sign-off** | `PAYMENT-ARCHITECTURE.md` |
 | 11 | Ratings + Reviews + Reputation | ⬜ Not started | |
 | 12 | Integrations + Notifications | ⬜ Not started | |
 | 13 | Security + QA | ⬜ Not started | `SECURITY-ARCHITECTURE.md` |
@@ -272,6 +272,8 @@ change.
 | M-07 | **Mobile designs** — Figma is desktop-only (1440px) | Phase 5+ responsive work |
 | ~~M-08~~ | ~~Business-model decision~~ — **RESOLVED 2026-09-10: keep architecture, adapt UI** | — |
 | M-02 | Brand identity assets | Design tokens |
-| M-03 | Commission model (rates, tiers) | Phase 10 |
-| M-04 | Launch geography + legal entity | Payment provider selection, currency, tax |
+| ~~M-03~~ | ~~Commission model~~ — **RESOLVED 2026-09-25: 10% flat, charged to the expert, no client platform fee** | — |
+| ~~M-04~~ | ~~Launch geography + payment providers~~ — **RESOLVED 2026-09-25: India, INR, Razorpay domestic + Stripe cross-border** | — |
+| M-04a | **Legal entity** — incorporation, CIN, registered office, GSTIN, Grievance Officer and Nodal Contact Person; provider contracting including the permitted escrow hold window | Publishing the Terms and the escrow policy; Phase 10 |
+| M-04b | **Chartered accountant sign-off** on GST, TDS u/s 194-O and GST TCS u/s 52 mechanics | Tax withholding in Phase 10 — see `docs/policies/escrow-and-disputes.md` §6.2 |
 | M-05 | Legal copy (ToS, privacy, contract template) | Phases 10, 14 — requires legal review |
