@@ -206,11 +206,22 @@ describe.skipIf(!available)('POST /api/projects/:projectId/transitions', () => {
 
   it('lets an administrator suspend and resume, only with MFA', async () => {
     const projectId = await world.newProject({ status: 'ACTIVE' });
-    const suspend = { event: 'SUSPEND', params: { reason: 'Investigation' } };
+    const suspend = {
+      event: 'SUSPEND',
+      params: { reason: 'Investigation of billing fraud' },
+      confirm: true,
+      expectedStatus: 'ACTIVE',
+    };
     expectError(await api.project(projectId, suspend, 'adminWithoutMfa'), 403, 'MFA_REQUIRED');
     expectError(await api.project(projectId, suspend, 'customer'), 403, 'FORBIDDEN_RESOURCE');
     expect(await api.project(projectId, suspend, 'admin')).toMatchObject({ status: 200, data: { to: 'SUSPENDED' } });
-    expect(await api.project(projectId, { event: 'RESUME' }, 'admin')).toMatchObject({ status: 200, data: { to: 'ACTIVE' } });
+    const resume = {
+      event: 'RESUME',
+      params: { reason: 'Investigation closed, no finding' },
+      confirm: true,
+      expectedStatus: 'SUSPENDED',
+    };
+    expect(await api.project(projectId, resume, 'admin')).toMatchObject({ status: 200, data: { to: 'ACTIVE' } });
   });
 
   it('refuses SYSTEM-only events from every human, and audits each attempt (403)', async () => {
@@ -289,7 +300,12 @@ describe.skipIf(!available)('POST /api/contracts/:contractId/transitions', () =>
 
   it('lets only an administrator with MFA terminate', async () => {
     const { contractId } = await world.engagement();
-    const terminate = { event: 'TERMINATE', params: { reason: 'Engagement breakdown' } };
+    const terminate = {
+      event: 'TERMINATE',
+      params: { reason: 'Engagement breakdown' },
+      confirm: true,
+      expectedStatus: 'ACTIVE',
+    };
     for (const who of ['customer', 'expert', 'finance'] as const) {
       expectError(await api.contract(contractId, terminate, who), 403, 'FORBIDDEN_RESOURCE');
     }
@@ -339,8 +355,14 @@ describe.skipIf(!available)('POST /api/milestones/:milestoneId/transitions', () 
 
   it('lets an administrator approve on any project, only with MFA', async () => {
     const { milestoneId } = await world.engagement({ milestoneStatus: 'IN_REVIEW' });
-    expectError(await api.milestone(milestoneId, { event: 'APPROVE' }, 'adminWithoutMfa'), 403, 'MFA_REQUIRED');
-    expect(await api.milestone(milestoneId, { event: 'APPROVE' }, 'admin')).toMatchObject({
+    const approve = {
+      event: 'APPROVE',
+      params: { reason: 'Customer unreachable; work verified' },
+      confirm: true,
+      expectedStatus: 'IN_REVIEW',
+    };
+    expectError(await api.milestone(milestoneId, approve, 'adminWithoutMfa'), 403, 'MFA_REQUIRED');
+    expect(await api.milestone(milestoneId, approve, 'admin')).toMatchObject({
       status: 200,
       data: { to: 'APPROVED' },
     });
@@ -415,11 +437,17 @@ describe.skipIf(!available)('POST /api/payments/:paymentId/transitions', () => {
 
   it('releases escrow only for finance with MFA (403 otherwise), audited at CRITICAL', async () => {
     const { paymentId } = await world.engagement({ milestoneStatus: 'APPROVED', paymentStatus: 'RELEASE_PENDING' });
+    const releaseRequest = {
+      event: 'RELEASE',
+      params: { reason: 'Milestone approved; escrow due' },
+      confirm: true,
+      expectedStatus: 'RELEASE_PENDING',
+    };
     for (const who of ['customer', 'expert', 'admin'] as const) {
-      expectError(await api.payment(paymentId, { event: 'RELEASE' }, who), 403, 'FORBIDDEN_RESOURCE');
+      expectError(await api.payment(paymentId, releaseRequest, who), 403, 'FORBIDDEN_RESOURCE');
     }
-    expectError(await api.payment(paymentId, { event: 'RELEASE' }, 'financeWithoutMfa'), 403, 'MFA_REQUIRED');
-    expect(await api.payment(paymentId, { event: 'RELEASE' }, 'finance')).toMatchObject({
+    expectError(await api.payment(paymentId, releaseRequest, 'financeWithoutMfa'), 403, 'MFA_REQUIRED');
+    expect(await api.payment(paymentId, releaseRequest, 'finance')).toMatchObject({
       status: 200,
       data: { to: 'RELEASED' },
     });
@@ -438,7 +466,13 @@ describe.skipIf(!available)('POST /api/payments/:paymentId/transitions', () => {
     expect(
       await api.milestone(other, { event: 'RAISE_DISPUTE', params: { reason: 'Quality', description: 'Incomplete' } }, 'customer'),
     ).toMatchObject({ status: 200 });
-    expectError(await api.payment(paymentId, { event: 'RELEASE' }, 'finance'), 422, 'TRANSITION_PRECONDITION_FAILED');
+    const release = {
+      event: 'RELEASE',
+      params: { reason: 'Milestone approved; escrow due' },
+      confirm: true,
+      expectedStatus: 'RELEASE_PENDING',
+    };
+    expectError(await api.payment(paymentId, release, 'finance'), 422, 'TRANSITION_PRECONDITION_FAILED');
     expect(await statusOf('payment', paymentId)).toBe('RELEASE_PENDING');
   });
 
@@ -450,10 +484,75 @@ describe.skipIf(!available)('POST /api/payments/:paymentId/transitions', () => {
     expectError(await api.payment(paymentId, request, 'expert'), 403, 'FORBIDDEN_RESOURCE');
     expect(await api.payment(paymentId, request, 'customer')).toMatchObject({ status: 200, data: { to: 'REFUND_REQUESTED' } });
 
-    const reject = { event: 'REJECT_REFUND', params: { reason: 'Work had started' } };
+    const reject = {
+      event: 'REJECT_REFUND',
+      params: { reason: 'Work had started before the request' },
+      confirm: true,
+      expectedStatus: 'REFUND_REQUESTED',
+    };
     expectError(await api.payment(paymentId, reject, 'customer'), 403, 'FORBIDDEN_RESOURCE');
     expectError(await api.payment(paymentId, reject, 'admin'), 403, 'FORBIDDEN_RESOURCE');
     expectError(await api.payment(paymentId, reject, 'financeWithoutMfa'), 403, 'MFA_REQUIRED');
     expect(await api.payment(paymentId, reject, 'finance')).toMatchObject({ status: 200, data: { to: 'FUNDS_ALLOCATED' } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Platform authority is held to the control plane's standard (Phase 8 review)
+// ---------------------------------------------------------------------------
+
+describe.skipIf(!available)('justification for platform-authority overrides', () => {
+  const REASON = 'Investigation of billing fraud';
+
+  it('refuses a high-risk override without a reason, and without a confirmed expected status', async () => {
+    const projectId = await world.newProject({ status: 'ACTIVE' });
+
+    expectError(await api.project(projectId, { event: 'SUSPEND' }, 'admin'), 422, 'REASON_REQUIRED');
+    expectError(
+      await api.project(projectId, { event: 'SUSPEND', params: { reason: 'too short' } }, 'admin'),
+      422,
+      'REASON_REQUIRED',
+    );
+    expectError(await api.project(projectId, { event: 'SUSPEND', params: { reason: REASON } }, 'admin'), 428, 'CONFIRMATION_REQUIRED');
+    expectError(
+      await api.project(projectId, { event: 'SUSPEND', params: { reason: REASON }, confirm: true }, 'admin'),
+      428,
+      'CONFIRMATION_REQUIRED',
+    );
+    expect(await statusOf('project', projectId)).toBe('ACTIVE');
+
+    expect(
+      await api.project(
+        projectId,
+        { event: 'SUSPEND', params: { reason: REASON }, confirm: true, expectedStatus: 'ACTIVE' },
+        'admin',
+      ),
+    ).toMatchObject({ status: 200, data: { to: 'SUSPENDED' } });
+  });
+
+  it('refuses an unauthorised or un-MFA’d caller before asking for a justification', async () => {
+    const projectId = await world.newProject({ status: 'ACTIVE' });
+    expectError(await api.project(projectId, { event: 'SUSPEND' }, 'customer'), 403, 'FORBIDDEN_RESOURCE');
+    expectError(await api.project(projectId, { event: 'SUSPEND' }, 'expert'), 403, 'FORBIDDEN_RESOURCE');
+    expectError(await api.project(projectId, { event: 'SUSPEND' }, 'adminWithoutMfa'), 403, 'MFA_REQUIRED');
+    expect(await statusOf('project', projectId)).toBe('ACTIVE');
+  });
+
+  it('leaves a party acting on their own engagement untouched', async () => {
+    const { milestoneId } = await world.engagement({ milestoneStatus: 'IN_REVIEW' });
+    // APPROVE is HIGH risk, but the customer holds only milestone:approve:own.
+    expect(await api.milestone(milestoneId, { event: 'APPROVE' }, 'customer')).toMatchObject({
+      status: 200,
+      data: { to: 'APPROVED' },
+    });
+  });
+
+  it('leaves medium-risk platform actions untouched', async () => {
+    const projectId = await world.newProject({ status: 'DRAFT' });
+    // CANCEL is MEDIUM: an administrator may still fire it without confirmation.
+    expect(await api.project(projectId, { event: 'CANCEL' }, 'admin')).toMatchObject({
+      status: 200,
+      data: { to: 'CANCELLED' },
+    });
   });
 });

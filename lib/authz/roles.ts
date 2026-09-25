@@ -277,9 +277,20 @@ export const PRIVILEGED_ROLES: readonly RoleName[] = [
 
 /**
  * Roles that MUST satisfy MFA before any privileged action.
- * Per STEP 02 §13: ADMIN, SUPER_ADMIN, FINANCE.
+ *
+ * STEP 02 §13 named ADMIN, SUPER_ADMIN and FINANCE. VERIFICATION_MANAGER was
+ * added at the Phase 8 review (open decision A-08): verification is a trust
+ * boundary, and granting or withdrawing a verified badge is a HIGH-risk
+ * decision, so it should not be made from a session that never passed a second
+ * factor. SUPPORT stays outside the gate: it is read-mostly and decides
+ * nothing.
  */
-export const MFA_REQUIRED_ROLES: readonly RoleName[] = ['ADMIN', 'SUPER_ADMIN', 'FINANCE'];
+export const MFA_REQUIRED_ROLES: readonly RoleName[] = [
+  'ADMIN',
+  'SUPER_ADMIN',
+  'FINANCE',
+  'VERIFICATION_MANAGER',
+];
 
 /** Actions so consequential they require SUPER_ADMIN, per STEP 02 §11.3 (CRITICAL tier). */
 export const SUPER_ADMIN_ONLY_PERMISSIONS: readonly Permission[] = [

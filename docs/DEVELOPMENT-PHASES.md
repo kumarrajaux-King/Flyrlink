@@ -11,7 +11,7 @@ Maintained continuously. Updated at the end of every phase.
 | 5 | Expert Marketplace | ⏭️ **Next — blocked by `M-01` (Figma)** | |
 | 6 | Customer Project Marketplace | ✅ **Lifecycle backend complete — awaiting architecture review.** UI not started (blocked by `M-06`/`M-07`) | `STEP-06-LIFECYCLE.md`, `domain/*/state-machine.ts`, `services/lifecycle/`, 4 API routes |
 | 7 | AI Agentic System | ✅ **Implemented — awaiting review** | `AI-AGENT-ARCHITECTURE.md`, `ai/`, `services/ai/`, 7 API routes |
-| 8 | Admin Control Plane | ✅ **Backend complete — awaiting review.** UI not started | `STEP-08-ADMIN-OPERATIONS.md`, `lib/authz/admin-policy.ts`, `services/admin/`, 47 API routes |
+| 8 | Admin Control Plane | ✅ **Approved** (2026-09-25), review follow-ups applied. UI not started | `STEP-08-ADMIN-OPERATIONS.md`, `lib/authz/admin-policy.ts`, `services/admin/`, 47 API routes |
 | 9 | Messaging + Collaboration | ⬜ Not started | |
 | 10 | Payments, Transactions, Commission, Refunds, Payouts | ⬜ Not started — **blocked by `M-03`, `M-04`** | `PAYMENT-ARCHITECTURE.md` |
 | 11 | Ratings + Reviews + Reputation | ⬜ Not started | |
@@ -192,13 +192,35 @@ the Phase 6 lifecycle services, so admins cannot bypass them; dispute resolution
 266 tests added (2,004 total). Typecheck, lint and build are clean. The pre-existing intermittent
 `ai-orchestrator.test.ts` connection failures are reported separately in `STEP-08-ADMIN-OPERATIONS.md` §15.
 
+### 2026-09-25 — Phase 8 approved; review follow-ups applied
+
+Phase 8 was approved. Two of the five open decisions were implemented, two were confirmed as they stand,
+and one was deferred (`STEP-08-ADMIN-OPERATIONS.md` §16).
+
+**1. Justification on the Phase 6 `/transitions` routes.** A caller acting on an `:any` grant — overriding
+the parties' flow rather than taking part in it — must now give a reason and confirm a HIGH or CRITICAL
+event against the status they reviewed, the same standard the admin control plane applies. An administrator
+can no longer sidestep that governance by using the Phase 6 endpoint. Confined to `lib/http/lifecycle.ts`,
+`lib/validation/lifecycle.ts` and the four route files: no state machine, service or rule changed, and a
+party acting on their own engagement is unaffected.
+
+**2. A-08 resolved.** `VERIFICATION_MANAGER` is now MFA-gated; `SUPPORT` stays outside the gate.
+
+**The flaky `ai-orchestrator` test was diagnosed, not fixed.** It is the Docker-less PGlite bridge dropping
+client connections, not application code: PGlite in-process is fine, the bridge logs no error and sees the
+client close, and neither more connections nor removing concurrent queries in the tool handler helped (both
+experiments reverted). Real PostgreSQL via `docker-compose.yml` is the answer; this machine has no Docker.
+
+2,010 tests, 6 added. Typecheck, lint and a clean `next build` pass. No schema change and no permission
+change.
+
 ## Open decisions requiring sign-off
 
 ### STEP 04 — authentication decisions
 | ID | Decision |
 | --- | --- |
 | T-02 (revised) | First-party sessions instead of Auth.js v5 — **approved** |
-| A-08 | MFA not required for `SUPPORT` / `VERIFICATION_MANAGER` (follows STEP 02 §13 exactly) |
+| A-08 | MFA for `VERIFICATION_MANAGER` — **resolved 2026-09-25: required**; `SUPPORT` stays outside the gate |
 | A-09 | Enumeration-safe registration rather than "email already registered" |
 | A-10 | Unverified accounts authenticate but are refused by `authorize` as `ACCOUNT_INACTIVE` |
 | A-11 | Session TTL 7 days; password-reset token 30 minutes |

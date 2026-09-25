@@ -289,6 +289,7 @@ const cookies = {
   support: '',
   verifier: '',
   verifierWithoutMfa: '',
+  supportWithoutMfa: '',
 };
 type Caller = keyof typeof cookies;
 
@@ -343,6 +344,7 @@ beforeAll(async () => {
   cookies.support = await world.sessionCookie(world.support);
   cookies.verifier = await world.sessionCookie(world.verifier);
   cookies.verifierWithoutMfa = await world.sessionCookie(world.verifier, { mfa: false });
+  cookies.supportWithoutMfa = await world.sessionCookie(world.support, { mfa: false });
 }, 120_000);
 
 afterAll(async () => {
@@ -419,10 +421,12 @@ describe.skipIf(!available)('read access by staff role', () => {
     }
   });
 
-  it('requires MFA of admin and finance sessions, and — per STEP 02 §13 — not of verification managers', async () => {
+  it('requires MFA of admin, finance and verification-manager sessions, and not of support', async () => {
     expectError(await call(route('users/route.ts'), 'GET', 'adminWithoutMfa'), 403, 'MFA_REQUIRED');
     expectError(await call(route('ledger/route.ts'), 'GET', 'financeWithoutMfa'), 403, 'MFA_REQUIRED');
-    expect((await call(route('verifications/route.ts'), 'GET', 'verifierWithoutMfa')).status).toBe(200);
+    // A-08, resolved at the Phase 8 review: verification is a trust boundary.
+    expectError(await call(route('verifications/route.ts'), 'GET', 'verifierWithoutMfa'), 403, 'MFA_REQUIRED');
+    expect((await call(route('disputes/route.ts'), 'GET', 'supportWithoutMfa')).status).toBe(200);
   });
 
   it('never returns credentials', async () => {

@@ -373,6 +373,18 @@ Legend:
 | `REQUEST_REFUND` | own (customer side) | — | — | **any** | **any** | — | — | — |
 | `REJECT_REFUND` | — | — | — | **any** | **any** | — | — | — |
 
+**Justification for platform-authority overrides (added at the Phase 8 review).**
+`lib/http/lifecycle.ts` now holds the `/transitions` routes to the admin control
+plane's standard: when the caller is acting on an `:any` grant — overriding the
+parties' own flow rather than taking part in it — a HIGH or CRITICAL event must
+carry `params.reason` (at least 10 characters) and `confirm: true` with the
+`expectedStatus` the caller reviewed. Refusals are `REASON_REQUIRED` (422) and
+`CONFIRMATION_REQUIRED` (428), decided before the service is called. A party
+acting on their own engagement holds only the `:own` grant and is unaffected, and
+the state machines, services and their rules are unchanged. This closes the gap
+where an administrator could sidestep the control plane's governance by calling
+the Phase 6 endpoint instead of `/api/admin/**`.
+
 **RBAC changes (approved at review):**
 - `assignment:respond:own` is a new permission, granted to EXPERT.
 - `contract:accept:own` already existed and is now also granted to EXPERT.
@@ -478,7 +490,7 @@ STEP 02 §10 gives four diagrams, and where a diagram is ambiguous or silent, it
 | Unit — every matrix cell, invariants, STEP 02 conformance, authorization | `tests/unit/lifecycle-machines.test.ts` | **1,339** |
 | Unit — lifecycle tool boundary (added to the existing AI policy suite) | `tests/unit/ai-policy.test.ts` | +4 (48 total) |
 | Integration — services against PostgreSQL | `tests/integration/lifecycle.test.ts` | **62** |
-| API routes — all four `/transitions` endpoints | `tests/integration/lifecycle-routes.test.ts` | **39** |
+| API routes — all four `/transitions` endpoints | `tests/integration/lifecycle-routes.test.ts` | **43** (39 + 4 for the Phase 8 justification rules) |
 | **Added in Phase 6** | | **1,444** |
 | Whole repository | 13 files | **1,724 passing, 0 failing** |
 

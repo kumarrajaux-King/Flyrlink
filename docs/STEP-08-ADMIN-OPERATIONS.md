@@ -2,12 +2,12 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Backend complete — awaiting review.** No admin UI (not in scope) |
+| Status | **Approved 2026-09-25.** Review follow-ups applied (§16). No admin UI (not in scope) |
 | Phase | Phase 8 — Admin Control Plane |
 | Depends on | STEP 03 (schema), STEP 04 (auth + RBAC), Phase 6 (lifecycle), Phase 7 (AI) |
 | Artifacts | `lib/authz/admin-policy.ts`, `domain/{account,verification,dispute,review,payout}/*`, `services/admin/`, `lib/http/admin.ts`, `lib/validation/admin.ts`, `app/api/admin/**` (47 new route files), `tests/unit/admin-*.test.ts`, `tests/integration/admin-*.test.ts`, `tests/support/admin-fixtures.ts` |
 | Schema changes | **None** |
-| RBAC changes | **None** — still 7 roles, 71 permissions |
+| RBAC changes | **None** — still 7 roles, 71 permissions. The review added `VERIFICATION_MANAGER` to the MFA-gated roles (A-08); no permission changed |
 
 ---
 
@@ -21,8 +21,8 @@
 | New pure state machines | 5 — account standing, verification, dispute triage, review moderation, payout decisions |
 | Capabilities (role × area) | 30, all expressed in the existing 71 permissions |
 | New audit actions | 14 (`admin.*`) |
-| Tests added | **266** — unit 100 · service integration 33 · API route 133 |
-| Whole repository | 2,004 tests in 19 files |
+| Tests added | **272** — 266 in Phase 8 (unit 100 · service integration 33 · API route 133), plus 6 from the review follow-ups |
+| Whole repository | 2,010 tests in 19 files |
 | Typecheck · lint · `next build` | clean · clean · clean |
 
 ## 2. Scope
@@ -75,9 +75,10 @@ evaluator (`domain/lifecycle/machine.ts`) and the transition authorizer
 
 ## 4. Admin roles and permission matrix
 
-Roles are the approved seven. No permission was added or re-granted. **ᴹ** = MFA required (STEP 02 §13).
+Roles are the approved seven. No permission was added or re-granted. **ᴹ** = MFA required — STEP 02 §13, plus
+`VERIFICATION_MANAGER` since the Phase 8 review (A-08).
 
-| Capability | Permissions (all required) | ADMIN ᴹ | SUPER_ADMIN ᴹ | FINANCE ᴹ | SUPPORT | VERIFICATION_MANAGER |
+| Capability | Permissions (all required) | ADMIN ᴹ | SUPER_ADMIN ᴹ | FINANCE ᴹ | SUPPORT | VERIFICATION_MANAGER ᴹ |
 | --- | --- | :-: | :-: | :-: | :-: | :-: |
 | `USERS_READ` | `user:read:any` | ✓ | ✓ | — | ✓ | ✓ |
 | `USERS_SUSPEND` ¹ | `user:suspend:any` | ✓ | ✓ | — | — | — |
@@ -325,38 +326,57 @@ events or lost races. Snapshots are redacted on write. Nothing edits or deletes 
 | `npx tsc --noEmit` | pass |
 | `npx eslint .` | pass |
 | `next build` (clean `.next`) | pass — 47 new admin routes compiled |
-| `npx vitest run` | 2,004 tests; all 266 Phase 8 tests pass. The pre-existing intermittent `ai-orchestrator.test.ts` failures are reported separately (§15) |
+| `npx vitest run` | 2,010 tests; every Phase 8 and follow-up test passes. One clean 2,010/2,010 run was observed; the pre-existing intermittent `ai-orchestrator.test.ts` failures are reported separately (§15) |
 | `prisma migrate status` | up to date, 4 migrations |
 | Protected paths (`prisma/`, `services/lifecycle`, `domain/{project,contract,milestone,payment,lifecycle}`, `services/auth`, `services/ai`, `ai/`, `lib/authz/{roles,authorize}.ts`, Phase 6/7 routes) | unchanged |
 
 ## 15. Known limitations and pre-existing issues
 
-- **Pre-existing flaky test (not Phase 8):** `tests/integration/ai-orchestrator.test.ts` — "executes the
-  action only when a human approves it" and "cannot be approved twice" intermittently fail with Prisma
-  "Server has closed the connection" inside `approveAction`. No module in that test's import graph reaches
-  Phase 8 code; the dev database runs with `DATABASE_POOL_MAX=1` on PGlite. Record: before Phase 8, failed
-  in 2 of 3 full runs and passed in 1 isolated run (2026-09-15); during Phase 8, failed in 2 of 2 full runs
-  and in 1 of 3 isolated runs (2026-09-16). Investigation deferred at the user's request.
-- **Governance applies on the admin endpoints.** The Phase 6 `/transitions` routes still let ADMIN fire
-  `:any` events (e.g. SUSPEND) without a reason, confirmation or conflict-of-interest check. Closing that
-  needs a change to the Phase 6 HTTP boundary — a decision for review (§16).
-- **MFA for SUPPORT and VERIFICATION_MANAGER** is not required (STEP 02 §13, open decision A-08), so
-  verification decisions can be made from a non-MFA session.
-- **Category management is SUPER_ADMIN-only** (`config:update:any`). Letting ADMIN manage taxonomy would
-  need a new permission.
+- **Pre-existing flaky test (not Phase 8, now diagnosed):**
+  `tests/integration/ai-orchestrator.test.ts` — "executes the action only when a
+  human approves it" and "cannot be approved twice" intermittently fail with
+  Prisma "Server has closed the connection" inside `approveAction`. The Phase 8
+  review investigated it:
+  - the failure is at the transport, not in application code. No module in that
+    test's import graph reaches Phase 8 code;
+  - with the bridge in debug mode the server processes every query cleanly and
+    then observes the **client** closing the socket — it logs no error of its own;
+  - PGlite in-process is unaffected: the same queries succeed. The fault is in
+    the Docker-less bridge (`@electric-sql/pglite-socket` 0.2.11, the latest
+    release) serving Prisma over TCP;
+  - neither raising the bridge's `maxConnections` nor removing the concurrent
+    queries inside the tool handler fixed it, so both experiments were reverted
+    and no application code was changed;
+  - measured rate: 3 of 5 isolated runs failed at one point, and a later full
+    run was clean at 2,010/2,010.
+  **Conclusion:** development infrastructure, not the product. The fix is to run
+  the suite against real PostgreSQL — `docker-compose.yml`, the project's primary
+  path — which this machine cannot do (no Docker). Left open as an environment
+  decision.
 - **Dispute awards, refund and payout processing, ledger postings** wait for Phase 10.
 - **Review moderation** does not recompute `ExpertPerformance`; Phase 11.
 - **Verification documents** are storage keys; no file storage or signed URLs yet.
-- **Audit scoping** for FINANCE / VERIFICATION_MANAGER is a service-level narrowing of an existing grant.
-- **Last-SUPER_ADMIN suspension guard** counts platform-wide and is not integration-tested (the shared dev
-  database holds other super administrators).
+- **Audit scoping** for FINANCE / VERIFICATION_MANAGER is a service-level narrowing
+  of an existing grant (confirmed at the review).
+- **Category management is SUPER_ADMIN-only** (`config:update:any`), confirmed at
+  the review. Letting ADMIN manage taxonomy would need a new permission.
+- **Dispute triage is ADMIN and SUPER_ADMIN only.** Extending it to SUPPORT needs a
+  new `dispute:triage:any` permission; deferred until the support desk's remit is
+  settled.
+- **Last-SUPER_ADMIN suspension guard** counts platform-wide and is not
+  integration-tested (the shared dev database holds other super administrators).
 - **pg deprecation notice** from `@prisma/adapter-pg` (carried from Phase 6).
 
-## 16. For review
+## 16. Review decisions (2026-09-25)
 
-1. Should the Phase 6 `/transitions` routes require reason/confirmation for `:any` HIGH/CRITICAL events,
-   so admin governance cannot be sidestepped?
-2. A-08: require MFA for VERIFICATION_MANAGER and SUPPORT?
-3. Category management: keep SUPER_ADMIN-only, or add `category:manage:any` for ADMIN?
-4. Dispute triage by SUPPORT (new `dispute:triage:any`)?
-5. Audit scopes for FINANCE and VERIFICATION_MANAGER (§4 note ²).
+| # | Decision | Outcome |
+| --- | --- | --- |
+| 1 | Justification on the Phase 6 `/transitions` routes | **Implemented.** A caller acting on an `:any` grant must give a reason and confirm a HIGH/CRITICAL event against the reviewed status. Parties acting on their own engagement are unaffected. `lib/http/lifecycle.ts` and the four route files only; no machine, service or rule changed. See STEP-06 §6 |
+| 2 | A-08 — MFA for VERIFICATION_MANAGER | **Implemented.** Added to `MFA_REQUIRED_ROLES`. SUPPORT stays outside the gate, being read-mostly |
+| 3 | Category management authority | **Unchanged** — SUPER_ADMIN only, because a category can scope a commission rule |
+| 4 | Dispute triage for SUPPORT | **Deferred** — additive and contained, but it needs a new permission and depends on whether the support desk does first-line triage |
+| 5 | Audit-log scopes | **Confirmed** as they stand: FINANCE sees financial records, VERIFICATION_MANAGER verification records |
+
+Follow-up tests: 4 new cases for the justification rules in
+`tests/integration/lifecycle-routes.test.ts` (39 → 43), and 2 more from the
+MFA-role tables now covering four roles (`admin-policy`, `authz`).
