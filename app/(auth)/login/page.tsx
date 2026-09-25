@@ -21,9 +21,14 @@ import { Button } from '../../../components/ui/button';
 import { Field, FormError, TextInput } from '../../../components/ui/field';
 import { type ApiFailure, api, fieldError } from '../../../lib/ui/api';
 
-/** Only a same-origin path is followed, so `?next=` cannot send anyone offsite. */
+/**
+ * Only a same-origin path is followed, so `?next=` cannot send anyone offsite.
+ *
+ * The default is `/dashboard`, which resolves the role server-side and
+ * forwards from there — so this page never has to know what a role means.
+ */
 function safeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/projects';
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/dashboard';
   return raw;
 }
 

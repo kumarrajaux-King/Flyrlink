@@ -247,6 +247,12 @@ export async function listProjects(
   actor: Actor,
   query: ProjectQuery = {},
 ): Promise<Page<ProjectView>> {
+  // Authorize before reading anything. The list is the caller's own, so the
+  // resource is the caller — but the check still has to run: it is what applies
+  // account standing, so a suspended or unverified account is refused here
+  // rather than being served its own data because the rows happen to be theirs.
+  assertAuthorized(actor, 'project:read:own', { ownerUserId: actor.userId });
+
   const profile = await db.customerProfile.findUnique({
     where: { userId: actor.userId },
     select: { id: true },

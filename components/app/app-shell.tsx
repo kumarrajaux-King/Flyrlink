@@ -1,16 +1,22 @@
 'use client';
 
 /**
- * The signed-in shell: a persistent sidebar of primary destinations, a top bar
- * carrying the unread badges, and the account menu.
+ * The signed-in shell: sidebar, header, who you are, what role you hold, and
+ * the way out.
  *
- * The badges come from `/api/notifications/summary`, one request for both
- * counts — the header renders them together and polling them separately would
- * double the request rate for no benefit.
+ * Identity arrives as a prop from the server layout, which read it from the
+ * database. The shell never fetches "who am I" itself, so there is no moment
+ * where the page is rendered for nobody in particular, and no client-held
+ * claim about a role.
  *
- * Destinations that have no screen yet are shown, disabled, with the reason.
- * Hiding them would misrepresent the product's shape; linking them would send
- * someone to a 404.
+ * NAVIGATION IS NOT A PERMISSION
+ *   The sidebar lists what this account can reach, which makes the product
+ *   legible — but hiding a link has never been the control. Every page
+ *   re-checks server-side, and a link typed by hand lands on the same gate.
+ *
+ * Destinations with no screen yet are shown disabled rather than hidden or
+ * linked: hiding misrepresents the product's shape, and linking sends someone
+ * to a 404.
  */
 
 import { usePathname } from 'next/navigation';
@@ -20,11 +26,16 @@ import { api } from '../../lib/ui/api';
 import { cn } from '../../lib/ui/cn';
 import { Logo } from '../ui/logo';
 
-interface Destination {
+export interface ShellUser {
+  readonly fullName: string;
+  readonly email: string;
+  readonly roles: readonly string[];
+  readonly mfaEnabled: boolean;
+}
+
+export interface ShellDashboard {
+  readonly path: string;
   readonly label: string;
-  readonly href: string;
-  readonly icon: React.ReactNode;
-  readonly ready: boolean;
 }
 
 const icon = (path: string) => (
@@ -36,18 +47,28 @@ const icon = (path: string) => (
     strokeWidth={1.9}
     strokeLinecap="round"
     strokeLinejoin="round"
-    className="size-[18px]"
+    className="size-[18px] shrink-0"
   >
     <path d={path} />
   </svg>
 );
 
-const DESTINATIONS: Destination[] = [
-  { label: 'Projects', href: '/projects', ready: true, icon: icon('M4 6h16M4 12h16M4 18h10') },
-  { label: 'New brief', href: '/projects/new', ready: true, icon: icon('M12 5v14M5 12h14') },
-  { label: 'Messages', href: '/messages', ready: false, icon: icon('M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z') },
-  { label: 'Payments', href: '/payments', ready: false, icon: icon('M3 7h18v11H3zM3 11h18') },
-  { label: 'Settings', href: '/settings', ready: false, icon: icon('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4 12h1m14 0h1M12 4v1m0 14v1') },
+const ICONS = {
+  grid: icon('M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z'),
+  list: icon('M4 6h16M4 12h16M4 18h10'),
+  plus: icon('M12 5v14M5 12h14'),
+  chat: icon('M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z'),
+  card: icon('M3 7h18v11H3zM3 11h18'),
+  cog: icon('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4 12h1m14 0h1M12 4v1m0 14v1'),
+};
+
+/** Work surfaces that exist, and the ones that do not yet. */
+const WORK: { label: string; href: string; icon: React.ReactNode; ready: boolean }[] = [
+  { label: 'Projects', href: '/projects', icon: ICONS.list, ready: true },
+  { label: 'New brief', href: '/projects/new', icon: ICONS.plus, ready: true },
+  { label: 'Messages', href: '/messages', icon: ICONS.chat, ready: false },
+  { label: 'Payments', href: '/payments', icon: ICONS.card, ready: false },
+  { label: 'Settings', href: '/settings', icon: ICONS.cog, ready: false },
 ];
 
 interface Summary {
@@ -55,11 +76,18 @@ interface Summary {
   readonly unreadMessages: number;
 }
 
-export function AppShell({ children }: { readonly children: React.ReactNode }) {
+export function AppShell({
+  user,
+  dashboards,
+  children,
+}: {
+  readonly user: ShellUser;
+  readonly dashboards: readonly ShellDashboard[];
+  readonly children: React.ReactNode;
+}) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [open, setOpen] = useState(false);
-  // `usePathname` is identical on the server and the client; reading
-  // `window.location` during render is a hydration mismatch.
+  const [signingOut, setSigningOut] = useState(false);
   const path = usePathname();
 
   useEffect(() => {
@@ -73,43 +101,106 @@ export function AppShell({ children }: { readonly children: React.ReactNode }) {
   }, []);
 
   async function signOut(): Promise<void> {
+    setSigningOut(true);
     await api('/api/auth/logout', { method: 'POST' });
-    window.location.assign('/');
+    // A full navigation, not a router push: the session is gone, so every
+    // cached server component for this account must be discarded too.
+    window.location.assign('/login');
   }
 
+  const link = (href: string, label: string, glyph: React.ReactNode, active: boolean) => (
+    <a
+      key={href}
+      href={href}
+      onClick={() => setOpen(false)}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-200',
+        active ? 'bg-brand-50 text-brand-700' : 'text-ink-muted hover:bg-canvas-subtle hover:text-ink',
+      )}
+    >
+      {glyph}
+      {label}
+    </a>
+  );
+
   const nav = (
-    <nav aria-label="Workspace" className="flex flex-col gap-1">
-      {DESTINATIONS.map((destination) => {
-        const active = path === destination.href || (destination.href !== '/projects/new' && path.startsWith(`${destination.href}/`));
-        if (!destination.ready) {
-          return (
+    <div className="flex flex-col gap-6">
+      <nav aria-label="Dashboards" className="flex flex-col gap-1">
+        <p className="px-3 pb-1 text-[10px] font-semibold tracking-[0.16em] text-ink-subtle uppercase">Dashboards</p>
+        {dashboards.map((dashboard) =>
+          link(dashboard.path, dashboard.label, ICONS.grid, path === dashboard.path),
+        )}
+      </nav>
+
+      <nav aria-label="Work" className="flex flex-col gap-1">
+        <p className="px-3 pb-1 text-[10px] font-semibold tracking-[0.16em] text-ink-subtle uppercase">Work</p>
+        {WORK.map((entry) =>
+          entry.ready ? (
+            link(
+              entry.href,
+              entry.label,
+              entry.icon,
+              path === entry.href || (entry.href !== '/projects/new' && path.startsWith(`${entry.href}/`)),
+            )
+          ) : (
             <span
-              key={destination.href}
+              key={entry.href}
               aria-disabled="true"
               title="This screen is not built yet."
               className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-subtle/70"
             >
-              {destination.icon}
-              {destination.label}
+              {entry.icon}
+              {entry.label}
               <span className="ml-auto text-[10px] font-semibold tracking-[0.12em] uppercase">Soon</span>
             </span>
-          );
-        }
-        return (
-          <a
-            key={destination.href}
-            href={destination.href}
-            className={cn(
-              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-200',
-              active ? 'bg-brand-50 text-brand-700' : 'text-ink-muted hover:bg-canvas-subtle hover:text-ink',
-            )}
-          >
-            {destination.icon}
-            {destination.label}
-          </a>
-        );
-      })}
-    </nav>
+          ),
+        )}
+      </nav>
+    </div>
+  );
+
+  const identity = (
+    <div className="flex flex-col gap-3 border-t border-line px-3 pt-4">
+      <div className="flex items-center gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-100 text-[13px] font-semibold text-brand-700">
+          {initials(user.fullName)}
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-sm font-semibold text-ink">{user.fullName}</span>
+          <span className="truncate text-[12px] text-ink-subtle">{user.email}</span>
+        </span>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {user.roles.length === 0 ? (
+          <span className="rounded-full bg-canvas-subtle px-2.5 py-1 text-[11px] font-semibold text-ink-subtle">
+            No role
+          </span>
+        ) : (
+          user.roles.map((role) => (
+            <span
+              key={role}
+              className="rounded-full bg-canvas-subtle px-2.5 py-1 text-[11px] font-semibold text-ink-muted"
+            >
+              {role.replace(/_/g, ' ').toLowerCase()}
+            </span>
+          ))
+        )}
+        {user.mfaEnabled ? (
+          <span className="rounded-full bg-positive-soft px-2.5 py-1 text-[11px] font-semibold text-positive">MFA on</span>
+        ) : null}
+      </div>
+
+      <button
+        type="button"
+        onClick={signOut}
+        disabled={signingOut}
+        className="cursor-pointer rounded-xl px-3 py-2.5 text-left text-sm font-medium text-ink-muted transition-colors hover:bg-canvas-subtle hover:text-ink disabled:opacity-60"
+      >
+        {signingOut ? 'Signing out…' : 'Sign out'}
+      </button>
+    </div>
   );
 
   return (
@@ -120,13 +211,7 @@ export function AppShell({ children }: { readonly children: React.ReactNode }) {
           <span className="sr-only">Flyrlink home</span>
         </a>
         {nav}
-        <button
-          type="button"
-          onClick={signOut}
-          className="mt-auto cursor-pointer rounded-xl px-3 py-2.5 text-left text-sm font-medium text-ink-muted transition-colors hover:bg-canvas-subtle hover:text-ink"
-        >
-          Sign out
-        </button>
+        <div className="mt-auto">{identity}</div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -152,19 +237,19 @@ export function AppShell({ children }: { readonly children: React.ReactNode }) {
             <div className="ml-auto flex items-center gap-2">
               <Badge label="Messages" count={summary?.unreadMessages ?? 0} />
               <Badge label="Notifications" count={summary?.unreadNotifications ?? 0} />
+              <span
+                className="hidden size-9 place-items-center rounded-full bg-brand-100 text-[13px] font-semibold text-brand-700 sm:grid"
+                title={`${user.fullName} · ${user.email}`}
+              >
+                {initials(user.fullName)}
+              </span>
             </div>
           </div>
 
           {open ? (
-            <div id="workspace-nav" className="border-t border-line px-3 pb-4 lg:hidden">
+            <div id="workspace-nav" className="flex flex-col gap-4 border-t border-line px-3 pt-3 pb-4 lg:hidden">
               {nav}
-              <button
-                type="button"
-                onClick={signOut}
-                className="mt-1 w-full cursor-pointer rounded-xl px-3 py-2.5 text-left text-sm font-medium text-ink-muted transition-colors hover:bg-canvas-subtle hover:text-ink"
-              >
-                Sign out
-              </button>
+              {identity}
             </div>
           ) : null}
         </header>
@@ -173,6 +258,12 @@ export function AppShell({ children }: { readonly children: React.ReactNode }) {
       </div>
     </div>
   );
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? (parts.at(-1)?.[0] ?? '') : '')).toUpperCase();
 }
 
 function Badge({ label, count }: { readonly label: string; readonly count: number }) {
