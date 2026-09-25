@@ -75,6 +75,9 @@ export const AUDIT_ACTIONS = {
   ADMIN_INTERVENTION_REQUESTED: 'admin.intervention.requested',
   ADMIN_INTERVENTION_COMPLETED: 'admin.intervention.completed',
   ADMIN_ACTION_DENIED: 'admin.action.denied',
+  // Project intake (the client entry flow)
+  PROJECT_CREATED: 'project.created',
+  PROJECT_DRAFT_UPDATED: 'project.draft_updated',
   // Messaging and collaboration (Phase 9)
   //
   // Sending a message is NOT audited: the message row is already the record,
