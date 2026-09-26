@@ -59,6 +59,14 @@ Why this is the right trade rather than a compromise:
 - The genuinely dangerous primitives are delegated to vetted libraries: `argon2` for hashing, `node:crypto` for token generation and timing-safe comparison, `otplib` for TOTP. No cryptography was written here.
 - The cost is that we own more code. That is paid for with 198 tests, including negative tests for every refusal path.
 
+**Environment variables that went with it.** `AUTH_SECRET` and `AUTH_URL` were
+listed in STEP 2 §14 for Auth.js and are dead here. No code reads either, and
+nothing should start to: a session token is 256 bits of CSPRNG output stored as
+a SHA-256 digest, so there is no signed artefact and therefore no signing key,
+and the one base URL the application needs is `APP_URL`. Both names have been
+removed from `.env.example` so a deployment is not asked for a secret that would
+then sit unused — an unused secret is still a secret to leak.
+
 ## 4. Architecture
 
 ```
@@ -187,6 +195,38 @@ own security and then act with no second factor.
 > still displaying that same code, which was then rejected as a replay. Replay
 > protection now applies only to the challenge path, where an intercepted code
 > could actually be reused to authenticate.
+
+### 9.1 Enforcement, and the hole that was in it
+
+For a role in `MFA_REQUIRED_ROLES`, a session counts as MFA-satisfied only when
+the account has **enrolled** a factor *and* has **cleared** it on *that* session.
+
+That sounds like what the code always said, and it was not. `login` minted the
+session with `mfaSatisfied: !user.mfaEnabled` — "this account has no MFA, so
+there is no MFA outstanding" — which is right for a customer and exactly wrong
+for an administrator who never enrolled: they got a fully cleared privileged
+session behind a password alone. `authorize` could not see it, because the
+session told it MFA was satisfied and it had no reason to doubt the session. The
+gap was visible in the product (`securityOverview` has counted
+`privilegedWithoutMfa` since Phase 8) and was not closed.
+
+It is now applied in two independent places, both server-side:
+
+| Where | What it does |
+| --- | --- |
+| `login` | Mints the session un-cleared when a factor is outstanding *or* an MFA-required role has none enrolled, and returns `MFA_ENROLLMENT_REQUIRED` so the caller is sent to enrollment rather than to a challenge it cannot answer |
+| `resolveSession` | Re-derives the flag on **every request** from the roles held now and the factors enrolled now (`mfaSatisfiedForSession`), so a role granted mid-session cannot ride a flag set before the grant, and a forged `mfaSatisfied` row buys nothing |
+
+`requirePermissionOnPage` now asks `authorize` rather than reading the
+permission table directly, so a whole screen is gated by the same decision
+function every service uses — account standing and the MFA gate included.
+Checking the table alone let an un-cleared administrator render the entire
+control plane and only meet a refusal when a panel went to fetch something.
+
+**Still open:** there is no enrollment or challenge *screen*. The API path
+(`POST` then `PATCH /api/auth/mfa/enroll`, then `POST /api/auth/mfa/verify`)
+is complete and tested; an administrator currently has to be walked through it.
+`/dashboard?mfa=1` explains the refusal but cannot yet resolve it.
 
 ## 10. Enumeration and email
 

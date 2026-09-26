@@ -9,6 +9,11 @@
  *     gets a session that is authenticated but not yet MFA-cleared; `authorize`
  *     denies privileged work until the challenge is passed. That is what makes
  *     MFA a property of *this* login rather than of the account.
+ *   - For a role in `MFA_REQUIRED_ROLES` the flag on the row is not taken at
+ *     face value. `resolveSession` recomputes it against the account's actual
+ *     enrollment and the roles held *now*, so an administrator who never set up
+ *     a second factor is never treated as having cleared one, and a role granted
+ *     mid-session cannot ride an already-cleared flag.
  *   - Any privilege change (password, MFA, roles) revokes every other session,
  *     so a stolen session cannot outlive the credential it was minted from.
  */
@@ -16,7 +21,7 @@
 import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit';
 import { SESSION_TTL_MS, expiresAt, hashToken, issueToken } from '../../lib/auth/tokens';
 import { type Actor } from '../../lib/authz/authorize';
-import { type RoleName } from '../../lib/authz/roles';
+import { type RoleName, mfaSatisfiedForSession, requiresMfa } from '../../lib/authz/roles';
 import { type Db, prisma } from '../../lib/db/client';
 
 export interface CreatedSession {
@@ -74,8 +79,13 @@ export interface ResolvedSession {
   readonly sessionId: string;
   readonly actor: Actor;
   readonly expiresAt: Date;
-  /** True when the user has MFA enabled but this session has not cleared it. */
+  /** True when the user has MFA enrolled but this session has not cleared it. */
   readonly mfaChallengePending: boolean;
+  /**
+   * True when the account holds an MFA-required role and has no second factor
+   * at all. Nothing privileged is permitted until one is enrolled and cleared.
+   */
+  readonly mfaEnrollmentRequired: boolean;
 }
 
 /**
@@ -121,15 +131,21 @@ export async function resolveSession(
   if (session.user.deletedAt) return null;
 
   const roles = session.user.roles.map((link) => link.role.name as RoleName);
+  const mfaSatisfied = mfaSatisfiedForSession({
+    roles,
+    mfaEnrolled: session.user.mfaEnabled,
+    sessionMfaSatisfied: session.mfaSatisfied,
+  });
 
   return {
     sessionId: session.id,
     expiresAt: session.expiresAt,
     mfaChallengePending: session.user.mfaEnabled && !session.mfaSatisfied,
+    mfaEnrollmentRequired: requiresMfa(roles) && !session.user.mfaEnabled,
     actor: {
       userId: session.user.id,
       roles,
-      mfaSatisfied: session.mfaSatisfied,
+      mfaSatisfied,
       // Only an ACTIVE account may act. A registered-but-unverified or a
       // suspended user authenticates successfully and is then refused by
       // `authorize` with ACCOUNT_INACTIVE, which is a clearer signal than a

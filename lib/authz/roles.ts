@@ -307,6 +307,31 @@ export function requiresMfa(roles: readonly RoleName[]): boolean {
   return roles.some((role) => MFA_REQUIRED_ROLES.includes(role));
 }
 
+/**
+ * Whether a session counts as having satisfied MFA.
+ *
+ * The session row carries a `mfaSatisfied` flag, but for a role in the required
+ * set that flag is not enough on its own: an account that never enrolled a
+ * second factor has nothing to satisfy, so a naive "the user has no MFA, so
+ * there is nothing to wait for" reading hands it a fully-cleared privileged
+ * session. That is precisely the hole this function closes — an MFA-required
+ * role must have **enrolled** a factor *and* cleared it on *this* session.
+ *
+ * Derived on every request rather than trusted from the row, so granting
+ * somebody ADMIN does not leave their existing session privileged-and-cleared
+ * until it happens to be revoked.
+ */
+export function mfaSatisfiedForSession(params: {
+  readonly roles: readonly RoleName[];
+  /** Whether the account has a second factor enrolled at all. */
+  readonly mfaEnrolled: boolean;
+  /** The flag stored on the session row. */
+  readonly sessionMfaSatisfied: boolean;
+}): boolean {
+  if (!requiresMfa(params.roles)) return params.sessionMfaSatisfied;
+  return params.mfaEnrolled && params.sessionMfaSatisfied;
+}
+
 /** All permissions granted by a set of roles, de-duplicated. */
 export function permissionsForRoles(roles: readonly RoleName[]): ReadonlySet<Permission> {
   const granted = new Set<Permission>();

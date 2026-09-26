@@ -27,6 +27,7 @@ export async function GET(request: Request): Promise<Response> {
         accountActive: session.actor.accountActive,
         mfaSatisfied: session.actor.mfaSatisfied,
         mfaChallengePending: session.mfaChallengePending,
+        mfaEnrollmentRequired: session.mfaEnrollmentRequired,
         expiresAt: session.expiresAt.toISOString(),
         permissions: [...permissionsForRoles(session.actor.roles)].sort(),
       },

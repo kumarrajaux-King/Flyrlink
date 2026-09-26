@@ -27,6 +27,11 @@ const ZERO_USAGE: AiUsage = { inputTokens: 0, outputTokens: 0, cachedInputTokens
 export type FakeScriptStep =
   | { readonly kind: 'output'; readonly output: unknown; readonly usage?: Partial<AiUsage> }
   | { readonly kind: 'toolCalls'; readonly toolCalls: readonly ProviderToolCall[]; readonly usage?: Partial<AiUsage> }
+  | {
+      readonly kind: 'toolCallsFrom';
+      readonly build: (request: AiCompletionRequest) => readonly ProviderToolCall[];
+      readonly usage?: Partial<AiUsage>;
+    }
   | { readonly kind: 'error'; readonly error: ProviderError };
 
 export class FakeProvider implements AiProvider {
@@ -45,6 +50,22 @@ export class FakeProvider implements AiProvider {
   /** Queue a turn in which the model asks to call tools. */
   pushToolCalls(toolCalls: readonly ProviderToolCall[], usage?: Partial<AiUsage>): this {
     this.script.push(usage ? { kind: 'toolCalls', toolCalls, usage } : { kind: 'toolCalls', toolCalls });
+    return this;
+  }
+
+  /**
+   * Queue a tool-calling turn whose arguments are built from what was actually
+   * sent.
+   *
+   * A real model answers with the identifiers it was shown, and since those are
+   * per-run surrogates, a fixed script cannot name one. This is how a test says
+   * "call the tool with the id you were given".
+   */
+  pushToolCallsFrom(
+    build: (request: AiCompletionRequest) => readonly ProviderToolCall[],
+    usage?: Partial<AiUsage>,
+  ): this {
+    this.script.push(usage ? { kind: 'toolCallsFrom', build, usage } : { kind: 'toolCallsFrom', build });
     return this;
   }
 
@@ -82,23 +103,25 @@ export class FakeProvider implements AiProvider {
 
     const usage: AiUsage = { ...ZERO_USAGE, ...(step.usage ?? {}) };
 
-    return step.kind === 'output'
-      ? {
-          output: step.output,
-          toolCalls: [],
-          usage,
-          model: request.model,
-          provider: this.name,
-          stopReason: 'end_turn',
-        }
-      : {
-          output: null,
-          toolCalls: step.toolCalls,
-          usage,
-          model: request.model,
-          provider: this.name,
-          stopReason: 'tool_use',
-        };
+    if (step.kind === 'output') {
+      return {
+        output: step.output,
+        toolCalls: [],
+        usage,
+        model: request.model,
+        provider: this.name,
+        stopReason: 'end_turn',
+      };
+    }
+
+    return {
+      output: null,
+      toolCalls: step.kind === 'toolCalls' ? step.toolCalls : step.build(request),
+      usage,
+      model: request.model,
+      provider: this.name,
+      stopReason: 'tool_use',
+    };
   }
 
   /** Flat, predictable pricing so cost assertions are exact. */

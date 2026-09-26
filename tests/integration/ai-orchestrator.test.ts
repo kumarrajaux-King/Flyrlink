@@ -270,6 +270,58 @@ describe.skipIf(!databaseAvailable)('privacy and prompt-injection boundaries', (
     expect(sent).not.toContain('9876543210');
   });
 
+  it('never sends a real identifier to the provider, and still gets a usable one back', async () => {
+    // The identifier regression, at the boundary it actually matters.
+    //
+    // Before: the phone rule ate the digit-and-dash tail of a UUID, so the model
+    // was handed `…-a716-[PHONE]` and any tool call built from it could only
+    // fail. Now the id is swapped for a surrogate — structurally valid, stable
+    // for this run — and translated back on the way into the tool, so the vendor
+    // sees nothing real and the agent can still name the row.
+    // Answer with the identifier we were handed, exactly as a model would.
+    fake.pushToolCallsFrom((request) => {
+      const shown = JSON.stringify(request.input).match(
+        /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+      );
+      return [
+        {
+          id: `call-${stamp}-surrogate`,
+          name: 'getProjectContext',
+          input: { projectId: shown?.[0] ?? 'nothing-usable-was-sent' },
+        },
+      ];
+    });
+    fake.pushOutput({ overallProgressPercent: 20, onTrack: true, observations: [], blockedItems: [] });
+
+    const result = await runAgent({
+      agentKey: 'EXECUTION',
+      input: { projectId },
+      actor: adminActor(),
+      projectId,
+    });
+
+    const sent = JSON.stringify(fake.requests.map((request) => request.input));
+    expect(sent, 'the real project id must never leave').not.toContain(projectId);
+    // What did leave is a well-formed UUID, not a mangled one.
+    const surrogate = sent.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    expect(surrogate, `no intact identifier in ${sent}`).not.toBeNull();
+    // A phone number the customer typed into the description is still masked —
+    // that is the point. What must not appear is the corrupted shape the old
+    // rule produced, an identifier with its last group eaten.
+    expect(sent).not.toMatch(/[0-9a-f]{4}-\[PHONE]/i);
+    expect(result.status).toBe('SUCCEEDED');
+
+    // And the round trip worked: the tool ran against the real row rather than
+    // failing to find a surrogate, and the payload we kept names the real id so
+    // an approval held for later can still be executed.
+    const action = await prisma.aiAction.findFirstOrThrow({
+      where: { aiRunId: result.runId, toolName: 'getProjectContext' },
+      select: { status: true, requestedPayload: true, errorMessage: true },
+    });
+    expect(action.status, action.errorMessage ?? '').toBe('EXECUTED');
+    expect(JSON.stringify(action.requestedPayload)).toContain(projectId);
+  });
+
   it('redacts PII before it is persisted', async () => {
     fake.pushOutput({
       overallProgressPercent: 10,

@@ -508,16 +508,15 @@ async function main(): Promise<void> {
   });
   await prisma.userRole.create({ data: { userId: admin.userId, roleId: adminRole.id } });
 
-  // WHAT ACTUALLY HAPPENS, and it is worth knowing: `login` mints a session
-  // with `mfaSatisfied: !user.mfaEnabled`, so an account that has never
-  // enrolled is treated as having nothing to satisfy. Granting ADMIN to such an
-  // account therefore does NOT close the gate — see the note this run prints at
-  // the end.
+  // This session was minted a moment ago, for an account that was then only a
+  // customer — so its stored `mfaSatisfied` flag says true. The ADMIN grant has
+  // to override that, and it does: `resolveSession` re-derives the answer from
+  // the roles held now and the factors actually enrolled, which here is none.
   const beforeEnrolment = await call('GET', '/api/admin/dashboard', { cookie: admin.cookie });
   check(
-    beforeEnrolment.status === 200,
-    'an ADMIN who never enrolled reaches the dashboard',
-    `${beforeEnrolment.status} — the MFA gate has nothing to bite on yet (see the note below)`,
+    beforeEnrolment.status === 403 && beforeEnrolment.error?.code === 'MFA_REQUIRED',
+    'an ADMIN who never enrolled is refused the dashboard',
+    `${beforeEnrolment.status} ${beforeEnrolment.error?.code ?? ''} — the grant does not ride the old flag`,
   );
 
   const enrolStart = await call('POST', '/api/auth/mfa/enroll', { cookie: admin.cookie });
@@ -657,14 +656,16 @@ async function main(): Promise<void> {
       C.dim(`  ·  every one of them a real HTTP round trip`),
   );
 
-  console.log(`\n   ${C.yellow('NOTE')}  ${C.bold('the MFA gate is opt-in, not enforced')}`);
+  console.log(`\n   ${C.yellow('NOTE')}  ${C.bold('MFA for privileged roles is enforced, not opt-in')}`);
   console.log(
     C.dim(
       [
-        '          `login` sets mfaSatisfied = !user.mfaEnabled, so a privileged account that has',
-        '          never enrolled passes `authorize` unchallenged. The gate only bites once the',
-        '          holder chooses to enrol. `services/admin/security-service.ts` already counts',
-        '          these accounts as `privilegedWithoutMfa`, so the gap is measured but not closed.',
+        '          A role in MFA_REQUIRED_ROLES must have a factor enrolled AND have cleared it on',
+        '          this session. Applied twice, both server-side: when `login` mints the session, and',
+        '          again from live account state every time `resolveSession` reads one — so a role',
+        '          granted mid-session cannot ride a flag set before the grant. There is still no',
+        '          enrolment screen: the API path above (POST then PATCH /api/auth/mfa/enroll) is how',
+        '          an administrator sets a factor up today.',
       ].join('\n'),
     ),
   );

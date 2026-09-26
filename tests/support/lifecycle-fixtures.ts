@@ -10,7 +10,7 @@
  */
 
 import type { Actor } from '../../lib/authz/authorize';
-import type { RoleName } from '../../lib/authz/roles';
+import { type RoleName, requiresMfa } from '../../lib/authz/roles';
 import { prisma } from '../../lib/db/client';
 import { SESSION_COOKIE_NAME } from '../../lib/http/session-cookie';
 import { createSession } from '../../services/auth/session-service';
@@ -74,6 +74,9 @@ export async function createLifecycleWorld(label: string) {
         fullName: `${label} ${name}`,
         status: 'ACTIVE',
         emailVerified: new Date(),
+        // A privileged role needs an enrolled second factor before any session
+        // of theirs counts as MFA-cleared.
+        mfaEnabled: requiresMfa(roles),
       },
       select: { id: true },
     });

@@ -12,6 +12,16 @@
  *   from credential stuffing; distributed IP throttling is defence in depth and
  *   is tracked for Phase 13.
  *
+ * MFA POLICY
+ *   A session is minted MFA-cleared only when there is genuinely nothing to
+ *   clear. Holding a role in `MFA_REQUIRED_ROLES` is enough to withhold that on
+ *   its own, even from an account that never enrolled a second factor: the
+ *   alternative is that "no MFA configured" reads as "no MFA outstanding" and
+ *   an administrator who skipped enrollment gets a fully privileged session.
+ *   `authorize` then refuses every privileged permission until they enrol and
+ *   pass a challenge, and `resolveSession` re-derives the same conclusion on
+ *   every request so this is not the only place it is enforced.
+ *
  * ENUMERATION POLICY
  *   Every failure path returns the same `INVALID_CREDENTIALS` outcome and costs
  *   comparable time (see `verifyPassword`'s dummy-hash path), so an attacker
@@ -20,6 +30,7 @@
 
 import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit';
 import { needsRehash, hashPassword, verifyPassword } from '../../lib/auth/password';
+import { type RoleName, requiresMfa } from '../../lib/authz/roles';
 import { type Db, prisma } from '../../lib/db/client';
 import { type CreatedSession, createSession, revokeSession } from './session-service';
 
@@ -33,6 +44,17 @@ export type LoginOutcome =
   | {
       readonly result: 'MFA_REQUIRED';
       /** Session exists but is not MFA-cleared; complete the challenge to use it. */
+      readonly session: CreatedSession;
+      readonly userId: string;
+    }
+  | {
+      /**
+       * The account holds an MFA-required role and has no second factor at all.
+       * Signing in succeeded; nothing privileged is permitted until one is
+       * enrolled, so the caller has to be sent to enrollment rather than to a
+       * challenge there is no way to answer.
+       */
+      readonly result: 'MFA_ENROLLMENT_REQUIRED';
       readonly session: CreatedSession;
       readonly userId: string;
     }
@@ -56,6 +78,10 @@ export async function login(
       mfaEnabled: true,
       failedLoginCount: true,
       lockedUntil: true,
+      roles: {
+        where: { revokedAt: null },
+        select: { role: { select: { name: true } } },
+      },
     },
   });
 
@@ -120,11 +146,15 @@ export async function login(
     data: { ...updates, lastLoginAt: now },
   });
 
+  const roles = candidate.roles.map((link) => link.role.name as RoleName);
+  const roleNeedsMfa = requiresMfa(roles);
+  // Un-cleared when there is a challenge to pass, and also when a privileged
+  // role has no factor enrolled to pass one with.
+  const mfaOutstanding = candidate.mfaEnabled || roleNeedsMfa;
+
   const session = await createSession(db, {
     userId: candidate.id,
-    // A user with MFA enabled starts un-cleared; `authorize` withholds
-    // privileged work until the challenge passes.
-    mfaSatisfied: !candidate.mfaEnabled,
+    mfaSatisfied: !mfaOutstanding,
     ...(params.context ? { context: params.context } : {}),
   });
 
@@ -133,13 +163,18 @@ export async function login(
     entityType: 'User',
     entityId: candidate.id,
     actorUserId: candidate.id,
-    afterState: { mfaRequired: candidate.mfaEnabled, status: candidate.status },
+    afterState: {
+      mfaRequired: mfaOutstanding,
+      mfaEnrolled: candidate.mfaEnabled,
+      roleRequiresMfa: roleNeedsMfa,
+      status: candidate.status,
+    },
     ...params.context,
   });
 
-  return candidate.mfaEnabled
-    ? { result: 'MFA_REQUIRED', session, userId: candidate.id }
-    : { result: 'SUCCESS', session, userId: candidate.id };
+  if (candidate.mfaEnabled) return { result: 'MFA_REQUIRED', session, userId: candidate.id };
+  if (roleNeedsMfa) return { result: 'MFA_ENROLLMENT_REQUIRED', session, userId: candidate.id };
+  return { result: 'SUCCESS', session, userId: candidate.id };
 }
 
 /** Log out by revoking the current session. */

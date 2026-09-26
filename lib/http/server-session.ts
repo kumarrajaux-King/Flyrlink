@@ -18,8 +18,9 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+import { type Actor, can } from '../authz/authorize';
 import { dashboardForPath, permissionsForDashboardPath } from '../authz/dashboards';
-import { type Permission, type RoleName, permissionsForRoles } from '../authz/roles';
+import { type Permission, type RoleName, requiresMfa } from '../authz/roles';
 import { prisma } from '../db/client';
 import { type ResolvedSession, resolveSession } from '../../services/auth/session-service';
 import { SESSION_COOKIE_NAME } from './session-cookie';
@@ -32,8 +33,21 @@ export interface CurrentUser {
   readonly roles: readonly RoleName[];
   readonly accountActive: boolean;
   readonly mfaEnabled: boolean;
+  /** True once this session has cleared MFA to the standard the roles demand. */
+  readonly mfaSatisfied: boolean;
   readonly mfaChallengePending: boolean;
+  readonly mfaEnrollmentRequired: boolean;
   readonly expiresAt: string;
+}
+
+/** The authorization identity behind a `CurrentUser`. */
+export function actorFor(user: CurrentUser): Actor {
+  return {
+    userId: user.userId,
+    roles: user.roles,
+    mfaSatisfied: user.mfaSatisfied,
+    accountActive: user.accountActive,
+  };
 }
 
 /** The caller's session, or null when there is no valid one. */
@@ -67,7 +81,9 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     roles: session.actor.roles,
     accountActive: session.actor.accountActive,
     mfaEnabled: user.mfaEnabled,
+    mfaSatisfied: session.actor.mfaSatisfied,
     mfaChallengePending: session.mfaChallengePending,
+    mfaEnrollmentRequired: session.mfaEnrollmentRequired,
     expiresAt: session.expiresAt.toISOString(),
   };
 }
@@ -91,17 +107,31 @@ export async function requireUser(returnTo: string): Promise<CurrentUser> {
  * the checks inside services and route handlers — a page rendering is not an
  * authorization decision about the data it later asks for — but it stops a
  * role from reaching a surface that was never meant for it.
+ *
+ * It asks `authorize`, not the permission table, so the screen is gated by the
+ * same decision function every service uses: account standing and the MFA gate
+ * apply here too. Checking the table alone let an administrator with an
+ * un-cleared session render the whole control plane and only meet a refusal
+ * when a panel went to fetch something.
+ *
+ * The viewer is passed as the resource, which is what makes an `:own`-scoped
+ * gate — "your own workspace" — answerable at all.
  */
 export async function requirePermissionOnPage(
   returnTo: string,
   permissions: readonly Permission[],
 ): Promise<CurrentUser> {
   const user = await requireUser(returnTo);
-  const held = permissionsForRoles(user.roles);
-  if (!permissions.some((permission) => held.has(permission))) {
-    redirect('/dashboard?denied=1');
-  }
-  return user;
+  const actor = actorFor(user);
+  const allowed = permissions.some((permission) =>
+    can(actor, permission, { ownerUserId: user.userId }),
+  );
+  if (allowed) return user;
+
+  // Separate reasons, because the remedies are different: one is "you cannot be
+  // here", the other is "finish signing in".
+  if (requiresMfa(user.roles) && !user.mfaSatisfied) redirect('/dashboard?mfa=1');
+  redirect('/dashboard?denied=1');
 }
 
 /**

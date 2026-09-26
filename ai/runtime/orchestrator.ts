@@ -38,7 +38,13 @@ import { type Db, prisma } from '../../lib/db/client';
 import { type AgentDefinition, type AgentKey, getAgentDefinition } from '../agents/definitions';
 import { evaluate, statusForDecision, type PolicyDecision } from '../policy/policy-engine';
 import { getProvider, ProviderError, type AiCompletionResponse, type ProviderToolSpec } from '../providers';
-import { redactForStorage, redactPii } from '../redaction/redact';
+import {
+  type RedactionContext,
+  createRedactionContext,
+  redactForStorage,
+  redactPii,
+  restoreIdentifiers,
+} from '../redaction/redact';
 import { executeTool, getTool, toolDescriptor } from '../tools';
 import { resolveAgentRecords } from './agent-sync';
 
@@ -122,6 +128,11 @@ export async function runAgent<TInput = unknown>(
 
   const records = await resolveAgentRecords(db, definition);
 
+  // One mapping for the whole run, so an identifier the model is shown in the
+  // input is the same identifier it can name in a tool call three turns later —
+  // and so the payload an operator reads in the console matches what was sent.
+  const redaction = createRedactionContext();
+
   // Redacted on the way in: this is what we persist AND what we send.
   const redactedInput = redactForStorage(params.input);
 
@@ -181,7 +192,7 @@ export async function runAgent<TInput = unknown>(
 
     // The running conversation input. Tool results are appended so the model can
     // build on what it retrieved.
-    let conversationInput: unknown = redactPii(parsedInput.data);
+    let conversationInput: unknown = redactPii(parsedInput.data, redaction);
     let response: AiCompletionResponse | null = null;
     let approvalHeld = false;
 
@@ -217,6 +228,7 @@ export async function runAgent<TInput = unknown>(
           aiRunId: run.id,
           call,
           decision,
+          redaction,
         });
 
         if (decision.effect === 'DENY') {
@@ -245,7 +257,9 @@ export async function runAgent<TInput = unknown>(
 
         // ALLOW — execute now, and record the outcome on the action.
         try {
-          const result = await executeTool(call.name, call.input, {
+          // The model only ever saw surrogates, so turn them back into the rows
+          // they stand for before the tool tries to load anything.
+          const result = await executeTool(call.name, restoreIdentifiers(call.input, redaction), {
             actor: params.actor,
             db,
             aiRunId: run.id,
@@ -279,8 +293,8 @@ export async function runAgent<TInput = unknown>(
       if (approvalHeld) break;
 
       conversationInput = {
-        original: redactPii(parsedInput.data),
-        toolResults: redactPii(toolResults),
+        original: redactPii(parsedInput.data, redaction),
+        toolResults: redactPii(toolResults, redaction),
       };
     }
 
@@ -309,7 +323,10 @@ export async function runAgent<TInput = unknown>(
       });
     }
 
-    const parsedOutput = definition.outputSchema.safeParse(response.output);
+    // The model answers in surrogates; the caller needs real rows.
+    const parsedOutput = definition.outputSchema.safeParse(
+      restoreIdentifiers(response.output, redaction),
+    );
     if (!parsedOutput.success) {
       return await finish(db, run.id, {
         status: 'VALIDATION_FAILED',
@@ -375,6 +392,7 @@ async function recordAction(
     aiRunId: string;
     call: { id: string; name: string; input: unknown };
     decision: PolicyDecision;
+    redaction: RedactionContext;
   },
 ): Promise<{ id: string; riskTier: string }> {
   const descriptor = toolDescriptor(params.call.name);
@@ -387,7 +405,9 @@ async function recordAction(
       toolName: params.call.name,
       // An unknown tool is treated as CRITICAL rather than defaulting low.
       riskTier,
-      requestedPayload: redactForStorage(params.call.input),
+      // Stored with real identifiers: an approval held now may be executed
+      // hours from now, when this run's surrogate mapping is long gone.
+      requestedPayload: redactForStorage(restoreIdentifiers(params.call.input, params.redaction)),
       status,
       policyDecision: params.decision.effect,
       policyReason: params.decision.reason,

@@ -10,8 +10,10 @@
  * database on every request rather than baked into a redirect the browser
  * remembers.
  *
- * `?denied=1` arrives when a page-level gate turned someone away. It is shown
- * plainly instead of silently dropping them on a dashboard with no explanation.
+ * `?denied=1` arrives when a page-level gate turned someone away, and `?mfa=1`
+ * when it turned them away specifically because their session has not cleared
+ * multi-factor authentication. Both are shown plainly instead of silently
+ * dropping them on a dashboard with no explanation.
  */
 
 import { redirect } from 'next/navigation';
@@ -27,16 +29,16 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage({
   searchParams,
 }: {
-  readonly searchParams: Promise<{ denied?: string }>;
+  readonly searchParams: Promise<{ denied?: string; mfa?: string }>;
 }) {
   const user = await requireUser('/dashboard');
-  const { denied } = await searchParams;
+  const { denied, mfa } = await searchParams;
 
-  // `denied` means a page gate turned this viewer away. Forwarding them again
+  // Either flag means a page gate turned this viewer away. Forwarding them again
   // would send them straight back to the page that refused them, and that page
   // would return them here — an infinite redirect rather than an explanation.
   // So a denial always stops at this screen, whatever role the viewer holds.
-  const destination = denied ? null : primaryDashboard(user.roles);
+  const destination = denied || mfa ? null : primaryDashboard(user.roles);
   if (destination && destination.path !== '/dashboard') redirect(destination.path);
 
   // Real counts for the client dashboard, scoped to this customer by the same
@@ -111,6 +113,17 @@ export default async function DashboardPage({
 
         <SignOutButton className="ml-auto bg-navy-800 text-white hover:bg-navy-900" />
       </section>
+
+      {mfa ? (
+        <p
+          role="alert"
+          className="rounded-xl bg-amber-50 px-4 py-3 text-[14px] leading-relaxed font-medium text-amber-800 ring-1 ring-amber-200 ring-inset"
+        >
+          {user.mfaEnrollmentRequired
+            ? 'Your role requires multi-factor authentication, and this account has no second factor set up yet. Until one is enrolled, nothing privileged is permitted.'
+            : 'Finish the multi-factor challenge for this session before opening that area.'}
+        </p>
+      ) : null}
 
       {denied ? (
         <p
