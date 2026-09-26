@@ -16,7 +16,9 @@ import {
   primaryDashboard,
   reachableDashboards,
 } from '../../lib/authz/dashboards';
+import { can } from '../../lib/authz/authorize';
 import { ROLE_NAMES, type RoleName, permissionsForRoles } from '../../lib/authz/roles';
+import { type CurrentUser, actorFor, landingDecision } from '../../lib/http/server-session';
 
 describe('dashboard routing', () => {
   it('gives every role a landing surface', () => {
@@ -131,6 +133,105 @@ describe('dashboard routing', () => {
       const gate = permissionsForDashboardPath(path);
       const held = permissionsForRoles(roles);
       expect(gate.some((permission) => held.has(permission)), `${roles.join('+')} → ${path}`).toBe(true);
+    }
+  });
+});
+
+/**
+ * The forward itself, not just the table.
+ *
+ * `landingPath` says where a role belongs. `landingDecision` says where this
+ * *viewer* may actually go, by asking the same question the destination will —
+ * which is not the same answer, because `authorize` can refuse the very role
+ * that was routed there. An un-cleared administrator holds ADMIN and is still
+ * turned away from `/admin`.
+ */
+describe('the landing forward', () => {
+  function viewer(overrides: Partial<CurrentUser> = {}): CurrentUser {
+    return {
+      userId: '018f3c2a-7b1e-7c4d-9e2f-1a2b3c4d5e6f',
+      fullName: 'Test Viewer',
+      email: 'viewer@example.test',
+      roles: ['CUSTOMER'],
+      accountActive: true,
+      mfaEnabled: false,
+      mfaSatisfied: true,
+      mfaChallengePending: false,
+      mfaEnrollmentRequired: false,
+      expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      ...overrides,
+    };
+  }
+
+  it('sends a cleared viewer to the surface their role owns', () => {
+    for (const [roles, path] of [
+      [['CUSTOMER'], '/dashboard'],
+      [['EXPERT'], '/expert'],
+      [['SUPPORT'], '/admin/support'],
+      [['ADMIN'], '/admin'],
+      [['FINANCE'], '/admin/finance'],
+      [['VERIFICATION_MANAGER'], '/admin/verification'],
+    ] as [RoleName[], string][]) {
+      const decision = landingDecision(viewer({ roles, mfaEnabled: true, mfaSatisfied: true }));
+      expect(decision.destination?.path, roles.join('+')).toBe(path);
+      expect(decision.blockedByMfa).toBe(false);
+    }
+  });
+
+  it('holds an un-cleared privileged viewer instead of bouncing them', () => {
+    // Registration grants CUSTOMER, so this is the realistic shape: an account
+    // that is a customer as well as an administrator.
+    //
+    // There is no destination at all, and that is correct rather than a gap:
+    // `authorize` applies the MFA gate to the *actor*, not to the permission,
+    // so holding an un-cleared ADMIN withholds every permission the account
+    // has — including the customer ones. `/dashboard` renders anyway, because
+    // it gates on `requireUser` and its job here is to explain the refusal.
+    for (const role of ['ADMIN', 'SUPER_ADMIN', 'FINANCE', 'VERIFICATION_MANAGER'] as RoleName[]) {
+      const decision = landingDecision(
+        viewer({ roles: ['CUSTOMER', role], mfaEnabled: false, mfaSatisfied: false }),
+      );
+      expect(decision.blockedByMfa, role).toBe(true);
+      expect(decision.destination, role).toBeNull();
+    }
+  });
+
+  it('holds a suspended viewer too, whatever they hold on paper', () => {
+    const decision = landingDecision(viewer({ roles: ['CUSTOMER', 'EXPERT'], accountActive: false }));
+    expect(decision.destination).toBeNull();
+    // Not an MFA problem — the account itself is not permitted to act.
+    expect(decision.blockedByMfa).toBe(false);
+  });
+
+  /**
+   * The invariant, restated where it actually bites.
+   *
+   * `/dashboard` forwards. If it forwards to a surface that refuses, the
+   * refusal comes back here — and the only thing that stopped an infinite
+   * redirect was this page noticing the `?mfa=1` on the way back. Not sending
+   * them in the first place is the fix; this is what pins it.
+   */
+  it('never names a destination that would refuse the viewer', () => {
+    for (const roles of [
+      ['CUSTOMER'],
+      ['EXPERT'],
+      ['CUSTOMER', 'EXPERT'],
+      ['CUSTOMER', 'ADMIN'],
+      ['CUSTOMER', 'SUPER_ADMIN'],
+      ['EXPERT', 'FINANCE'],
+      ['CUSTOMER', 'SUPPORT'],
+      ['CUSTOMER', 'VERIFICATION_MANAGER'],
+    ] as RoleName[][]) {
+      for (const mfaSatisfied of [true, false]) {
+        const user = viewer({ roles, mfaEnabled: mfaSatisfied, mfaSatisfied });
+        const { destination } = landingDecision(user);
+        if (!destination) continue;
+        const gate = permissionsForDashboardPath(destination.path);
+        expect(
+          gate.some((permission) => can(actorFor(user), permission, { ownerUserId: user.userId })),
+          `${roles.join('+')} (mfa=${mfaSatisfied}) → ${destination.path}`,
+        ).toBe(true);
+      }
     }
   });
 });

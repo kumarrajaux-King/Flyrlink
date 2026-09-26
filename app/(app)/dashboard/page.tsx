@@ -20,9 +20,8 @@ import { redirect } from 'next/navigation';
 
 import { DashboardScaffold } from '../../../components/app/dashboard-scaffold';
 import { SignOutButton } from '../../../components/app/sign-out-button';
-import { primaryDashboard } from '../../../lib/authz/dashboards';
 import { prisma } from '../../../lib/db/client';
-import { requireUser } from '../../../lib/http/server-session';
+import { landingDecision, requireUser } from '../../../lib/http/server-session';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,8 +37,15 @@ export default async function DashboardPage({
   // would send them straight back to the page that refused them, and that page
   // would return them here — an infinite redirect rather than an explanation.
   // So a denial always stops at this screen, whatever role the viewer holds.
-  const destination = denied || mfa ? null : primaryDashboard(user.roles);
-  if (destination && destination.path !== '/dashboard') redirect(destination.path);
+  //
+  // `landingDecision` then makes the forward itself safe: it asks the same
+  // question the destination will, so nobody is sent to a surface that is going
+  // to bounce them straight back.
+  const landing = landingDecision(user);
+  const blockedByMfa = Boolean(mfa) || landing.blockedByMfa;
+  if (!denied && !blockedByMfa && landing.destination && landing.destination.path !== '/dashboard') {
+    redirect(landing.destination.path);
+  }
 
   // Real counts for the client dashboard, scoped to this customer by the same
   // profile link the projects API uses.
@@ -114,7 +120,7 @@ export default async function DashboardPage({
         <SignOutButton className="ml-auto bg-navy-800 text-white hover:bg-navy-900" />
       </section>
 
-      {mfa ? (
+      {blockedByMfa ? (
         <p
           role="alert"
           className="rounded-xl bg-amber-50 px-4 py-3 text-[14px] leading-relaxed font-medium text-amber-800 ring-1 ring-amber-200 ring-inset"

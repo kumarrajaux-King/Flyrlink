@@ -19,7 +19,13 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { type Actor, can } from '../authz/authorize';
-import { dashboardForPath, permissionsForDashboardPath } from '../authz/dashboards';
+import {
+  DASHBOARDS,
+  type Dashboard,
+  dashboardForPath,
+  permissionsForDashboardPath,
+  primaryDashboard,
+} from '../authz/dashboards';
 import { type Permission, type RoleName, requiresMfa } from '../authz/roles';
 import { prisma } from '../db/client';
 import { type ResolvedSession, resolveSession } from '../../services/auth/session-service';
@@ -86,6 +92,48 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     mfaEnrollmentRequired: session.mfaEnrollmentRequired,
     expiresAt: session.expiresAt.toISOString(),
   };
+}
+
+/**
+ * Where `/dashboard` should send this viewer — or that it should keep them.
+ *
+ * WHY THIS IS NOT JUST `primaryDashboard`
+ *   `primaryDashboard` answers from the roles alone: an ADMIN belongs in the
+ *   control plane. That is true and not sufficient, because the destination
+ *   applies `authorize`, and `authorize` can refuse the very role that was
+ *   routed there — an administrator who has not cleared MFA holds ADMIN and is
+ *   still turned away.
+ *
+ *   Forwarding them anyway means `/dashboard` sends someone to a page it
+ *   already knows will bounce them back. Today that terminates, because the
+ *   bounce carries `?mfa=1` and this page stops forwarding when it sees one.
+ *   Relying on that is how the ERR_TOO_MANY_REDIRECTS bug happened the first
+ *   time: a redirect loop is not an error message, it is a browser giving up.
+ *
+ *   So the decision asks the same question the destination will, and keeps
+ *   anyone the answer would refuse — with `blockedByMfa` saying why, so the
+ *   screen can explain rather than silently doing nothing.
+ */
+export function landingDecision(user: CurrentUser): {
+  readonly destination: Dashboard | null;
+  readonly blockedByMfa: boolean;
+} {
+  const actor = actorFor(user);
+  const admits = (dashboard: Dashboard): boolean =>
+    dashboard.permissions.some((permission) => can(actor, permission, { ownerUserId: user.userId }));
+
+  const primary = primaryDashboard(user.roles);
+  if (primary && admits(primary)) return { destination: primary, blockedByMfa: false };
+
+  // Their own surface refused them. Say so when it was the MFA gate, and try
+  // the shared surface — which is itself gated, and often refuses too: the MFA
+  // gate applies to the actor rather than to the permission, so an un-cleared
+  // administrator holds nothing usable, not even their own customer grants.
+  // Coming back with no destination is the right answer there; `/dashboard`
+  // renders regardless and explains, which is what it is for.
+  const blockedByMfa = Boolean(primary) && requiresMfa(user.roles) && !user.mfaSatisfied;
+  const fallback = DASHBOARDS.find((dashboard) => dashboard.path === '/dashboard' && admits(dashboard)) ?? null;
+  return { destination: fallback, blockedByMfa };
 }
 
 /**
