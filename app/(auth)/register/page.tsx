@@ -86,7 +86,7 @@ export default function RegisterPage() {
         </p>
       </div>
 
-      <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
+      <form method="post" onSubmit={submit} className="flex flex-col gap-5" noValidate>
         <fieldset className="flex flex-col gap-3">
           <legend className="pb-2 text-sm font-semibold text-ink">Which are you?</legend>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

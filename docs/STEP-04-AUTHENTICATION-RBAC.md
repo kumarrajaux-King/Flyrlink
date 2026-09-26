@@ -223,10 +223,51 @@ function every service uses — account standing and the MFA gate included.
 Checking the table alone let an un-cleared administrator render the entire
 control plane and only meet a refusal when a panel went to fetch something.
 
-**Still open:** there is no enrollment or challenge *screen*. The API path
-(`POST` then `PATCH /api/auth/mfa/enroll`, then `POST /api/auth/mfa/verify`)
-is complete and tested; an administrator currently has to be walked through it.
-`/dashboard?mfa=1` explains the refusal but cannot yet resolve it.
+### 9.2 The screens
+
+| Route | What it is |
+| --- | --- |
+| `/dashboard/security/mfa` | Two-phase enrollment: QR code, the same secret as text for manual entry, then the code that proves it. Ends on the backup codes, shown once. |
+| `/login/mfa` | The challenge. TOTP or a backup code, with cancel-and-sign-out. |
+
+Both talk only to the endpoints in §12; neither has an API of its own.
+
+**The challenge is a route, not a stage.** It used to be a `useState` stage
+inside the sign-in form, and a refresh mid-challenge dropped the person back on
+the credentials step with a live session cookie already set, asking again for a
+password they had just proven. A URL survives a refresh; React state does not.
+`/login/mfa` re-reads the session server-side and routes on what it finds — no
+session to `/login`, no factor enrolled to enrollment, already cleared straight
+through — so a stale answer from the sign-in page changes nothing.
+
+**Enrollment is gated on being signed in, and nothing more.** A permission gate
+there would refuse exactly the person the screen exists for: `authorize` applies
+the MFA rule to the actor rather than to the permission, so an un-cleared
+administrator holds no usable permission at all. The screen acts only on the
+signed-in account's own factor, through endpoints that take the user from the
+session.
+
+**The secret is never written anywhere durable** — not `localStorage`, not
+`sessionStorage`, not a query string, and not a URL an `<img>` QR code would be
+fetched from. It is rendered in the page as an inline SVG (`qrcode-generator`,
+zero dependencies, MIT) and as selectable text, and it is held in React state
+for the length of the setup. The browser walkthrough asserts all three
+absences.
+
+> **A defect the browser test found.** Every form in the application was a
+> `<form>` with no `method`, which is a GET. Until React hydrates there is no
+> `onSubmit` to call `preventDefault`, so a submit in that window was a real
+> navigation to `/login?email=…&password=…` — the password in the address bar,
+> in history, and in every access log along the way. A narrow race, and a race
+> is not a defence: a browser test clicking faster than hydration hit it, which
+> is what somebody on a slow connection does. Every credential-bearing form now
+> carries `method="post"`.
+
+**Still open:** MFA challenge attempts are neither counted nor rate-limited.
+Sign-in failures lock an account after five (§11); `verifyMfaChallenge` has no
+equivalent, so a six-digit code with a ±1-step window — three valid values in a
+million — can be attempted without limit. The screens carry a `RATE_LIMITED`
+state for when the backend grows one. Tracked with the Phase 13 throttling work.
 
 ## 10. Enumeration and email
 

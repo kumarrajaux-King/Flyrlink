@@ -22,6 +22,7 @@ import { DashboardScaffold } from '../../../components/app/dashboard-scaffold';
 import { SignOutButton } from '../../../components/app/sign-out-button';
 import { prisma } from '../../../lib/db/client';
 import { landingDecision, requireUser } from '../../../lib/http/server-session';
+import { MFA_CHALLENGE_PATH, MFA_ENROLLMENT_PATH } from '../../../lib/ui/auth-routes';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,14 +122,23 @@ export default async function DashboardPage({
       </section>
 
       {blockedByMfa ? (
-        <p
+        <div
           role="alert"
-          className="rounded-xl bg-amber-50 px-4 py-3 text-[14px] leading-relaxed font-medium text-amber-800 ring-1 ring-amber-200 ring-inset"
+          className="flex flex-col items-start gap-3 rounded-xl bg-amber-50 px-4 py-4 text-[14px] leading-relaxed font-medium text-amber-800 ring-1 ring-amber-200 ring-inset"
         >
-          {user.mfaEnrollmentRequired
-            ? 'Your role requires multi-factor authentication, and this account has no second factor set up yet. Until one is enrolled, nothing privileged is permitted.'
-            : 'Finish the multi-factor challenge for this session before opening that area.'}
-        </p>
+          <p>
+            {user.mfaEnrollmentRequired
+              ? 'Your role requires multi-factor authentication, and this account has no second factor set up yet. Until one is enrolled, nothing privileged is permitted.'
+              : 'Finish the multi-factor challenge for this session before opening that area.'}
+          </p>
+          {/* The refusal, and the way out of it, in the same place. */}
+          <a
+            href={user.mfaEnrollmentRequired ? MFA_ENROLLMENT_PATH : MFA_CHALLENGE_PATH}
+            className="inline-flex h-10 items-center rounded-full bg-amber-800 px-4 text-[13px] font-semibold text-white transition-colors hover:bg-amber-900"
+          >
+            {user.mfaEnrollmentRequired ? 'Set up two-factor authentication' : 'Enter your code'}
+          </a>
+        </div>
       ) : null}
 
       {denied ? (

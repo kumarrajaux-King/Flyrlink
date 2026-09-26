@@ -27,7 +27,8 @@
     "db:dev-server": "node scripts/pglite-server.mjs",
     "db:verify": "prisma migrate status",
     "walkthrough": "tsx scripts/api-walkthrough.mts",
-    "routing": "tsx scripts/role-routing-check.mts"
+    "routing": "tsx scripts/role-routing-check.mts",
+    "mfa:browser": "tsx scripts/mfa-browser-check.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.124.0",
@@ -41,6 +42,7 @@
     "openai": "7.13.0",
     "otplib": "13.5.0",
     "pg": "8.23.0",
+    "qrcode-generator": "2.0.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "tailwind-merge": "3.7.0",

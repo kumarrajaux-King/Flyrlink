@@ -168,7 +168,7 @@ export default function NewProjectPage() {
       </header>
 
       {step === 'DESCRIBE' ? (
-        <form onSubmit={describe} className="flex flex-col gap-6 rounded-card bg-white p-7 shadow-card ring-1 ring-line" noValidate>
+        <form method="post" onSubmit={describe} className="flex flex-col gap-6 rounded-card bg-white p-7 shadow-card ring-1 ring-line" noValidate>
           <Field id="title" label="What should we call it?" error={fieldError(error, 'title')}>
             <TextInput
               id="title"

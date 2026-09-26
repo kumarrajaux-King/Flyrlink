@@ -1,17 +1,31 @@
 'use client';
 
 /**
- * `/login` — sign in, and answer the MFA challenge when one is required.
+ * `/login` — the password half of signing in.
  *
- * Both steps live on one page because they are one act. `login` answers with
- * `mfaRequired`, and the session cookie is already set at that point — the
- * session simply has not satisfied its second factor yet, so it can reach the
- * verify endpoint and nothing else. Sending the person to a second URL would
- * add a place for the flow to be lost on a refresh.
+ * The second factor lives at `/login/mfa`, not as a stage on this page. It was
+ * a stage once, and a refresh mid-challenge dropped the person back onto the
+ * credentials form with a live session cookie already set — asking again for a
+ * password they had just proven. A URL survives a refresh; React state does
+ * not.
+ *
+ * Which of the three destinations is right is not decided here. `login`
+ * answers with `mfaRequired`, and `/login/mfa` re-reads the session
+ * server-side and routes from what it finds — so a stale or tampered answer
+ * from this page changes nothing.
  *
  * A failed sign-in never says which half was wrong. The server answers
  * `INVALID_CREDENTIALS` for both, and this page repeats it rather than
  * improving on it.
+ *
+ * `method="post"` is not decoration. A `<form>` with no method is a GET, and
+ * until React has hydrated there is no `onSubmit` to call `preventDefault` —
+ * so a submit in that window was a real browser navigation to
+ * `/login?email=…&password=…`. That puts the password in the address bar, in
+ * browser history, and in every access log along the way. It is a narrow race,
+ * and a race is not a defence; it was caught by a browser test clicking faster
+ * than hydration, which is exactly what a person on a slow connection does.
+ * POST keeps the credentials in a body whatever happens.
  */
 
 import { useSearchParams } from 'next/navigation';
@@ -20,20 +34,9 @@ import { Suspense, useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Field, FormError, TextInput } from '../../../components/ui/field';
 import { type ApiFailure, api, fieldError } from '../../../lib/ui/api';
-
-/**
- * Only a same-origin path is followed, so `?next=` cannot send anyone offsite.
- *
- * The default is `/dashboard`, which resolves the role server-side and
- * forwards from there — so this page never has to know what a role means.
- */
-function safeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/dashboard';
-  return raw;
-}
+import { MFA_CHALLENGE_PATH, safeNext } from '../../../lib/ui/auth-routes';
 
 function LoginForm() {
-  const [stage, setStage] = useState<'CREDENTIALS' | 'MFA'>('CREDENTIALS');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ApiFailure | null>(null);
 
@@ -50,68 +53,18 @@ function LoginForm() {
       body: { email: String(form.get('email') ?? ''), password: String(form.get('password') ?? '') },
     });
 
-    setBusy(false);
     if (!result.ok) {
+      setBusy(false);
       setError(result.error);
       return;
     }
-    if (result.data.mfaRequired) setStage('MFA');
-    else window.location.assign(next);
-  }
 
-  async function verify(event: React.FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    setBusy(true);
-    setError(null);
-
-    const result = await api('/api/auth/mfa/verify', {
-      method: 'POST',
-      body: { code: String(form.get('code') ?? '').trim() },
-    });
-
-    setBusy(false);
-    if (result.ok) window.location.assign(next);
-    else setError(result.error);
-  }
-
-  if (stage === 'MFA') {
-    return (
-      <div className="flex flex-col gap-6 rounded-card bg-white p-8 shadow-card ring-1 ring-line">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-[-0.02em] text-ink">Confirm it is you</h1>
-          <p className="text-[15px] leading-relaxed text-ink-muted">
-            Enter the six-digit code from your authenticator app.
-          </p>
-        </div>
-
-        <form onSubmit={verify} className="flex flex-col gap-5" noValidate>
-          <Field id="code" label="Authentication code" error={fieldError(error, 'code')}>
-            <TextInput
-              id="code"
-              name="code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={10}
-              required
-              autoFocus
-              placeholder="123456"
-              className="text-center text-lg tracking-[0.4em] tabular-nums"
-              invalid={Boolean(error)}
-            />
-          </Field>
-
-          <FormError message={error && !error.details ? error.message : null} />
-
-          <Button type="submit" size="lg" disabled={busy}>
-            {busy ? 'Checking…' : 'Verify'}
-          </Button>
-
-          <p className="text-[13px] leading-relaxed text-ink-subtle">
-            A backup code works here too, if you cannot reach the app.
-          </p>
-        </form>
-      </div>
+    // A full navigation either way — the cookie just changed, so nothing
+    // rendered before it is still valid. `/login/mfa` decides between the
+    // challenge, enrollment, and passing straight through; it does not take
+    // this page's word for it.
+    window.location.assign(
+      result.data.mfaRequired ? `${MFA_CHALLENGE_PATH}?next=${encodeURIComponent(next)}` : next,
     );
   }
 
@@ -128,7 +81,7 @@ function LoginForm() {
         </p>
       </div>
 
-      <form onSubmit={signIn} className="flex flex-col gap-5" noValidate>
+      <form method="post" onSubmit={signIn} className="flex flex-col gap-5" noValidate>
         <Field id="email" label="Email" error={fieldError(error, 'email')}>
           <TextInput
             id="email"
