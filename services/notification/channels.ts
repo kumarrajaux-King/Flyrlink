@@ -1,10 +1,15 @@
 /**
  * Delivery channels, behind adapters.
  *
- * Same shape and the same honesty rule as `lib/email/auth-email.ts`: in
- * development a channel logs what it would have sent, so the whole flow is
- * exercisable without a vendor account; in production an unconfigured channel
- * throws rather than reporting a delivery that never happened.
+ * Same honesty rule throughout: in development a channel without a provider
+ * logs what it would have sent, so the whole flow is exercisable without a
+ * vendor account; in production an unconfigured channel throws rather than
+ * reporting a delivery that never happened.
+ *
+ * EMAIL is no longer one of those stubs. It goes through `lib/email`, which is
+ * the one way into mail for the whole application — so a notification and a
+ * password reset use the same provider, the same sender and the same
+ * "did it actually go?" answer.
  *
  * IN_APP is the exception — it is not an external channel at all. The row in
  * `notifications` *is* the delivery, so it is complete the moment it is
@@ -15,6 +20,8 @@
  * outside this file needs to change when it does.
  */
 
+import { emailService } from '../../lib/email/email-service';
+import { readEmailConfig } from '../../lib/email/config';
 import type { NotificationChannel } from '../../domain/notification/routing';
 
 export interface ChannelPayload {
@@ -101,9 +108,40 @@ const IN_APP_ADAPTER: ChannelAdapter = {
   },
 };
 
+/**
+ * Email, through the real service.
+ *
+ * Unlike the stubs below it, this one sends. The service decides which
+ * transport carries it and reports whether anything left; the only thing this
+ * adapter adds is the notification's own shape, and the production refusal —
+ * a notification that silently went nowhere is the failure mode the whole
+ * module is written around.
+ */
+const EMAIL_ADAPTER: ChannelAdapter = {
+  channel: 'EMAIL',
+  isConfigured: () => readEmailConfig().provider !== 'console',
+  needsDestination: true,
+  async send(payload: ChannelPayload): Promise<void> {
+    if (!payload.destination) throw new MissingDestinationError('EMAIL');
+
+    const result = await emailService().sendNotification({
+      to: payload.destination,
+      subject: payload.title,
+      heading: payload.title,
+      body: [payload.body],
+      tag: payload.type.toLowerCase(),
+      ...(payload.actionUrl ? { action: { label: 'Open in Flyrlink', url: payload.actionUrl } } : {}),
+    });
+
+    if (result.status === 'NOT_SENT' && process.env.NODE_ENV === 'production') {
+      throw new ChannelNotConfiguredError('EMAIL');
+    }
+  },
+};
+
 const ADAPTERS: Readonly<Record<NotificationChannel, ChannelAdapter>> = {
   IN_APP: IN_APP_ADAPTER,
-  EMAIL: externalAdapter('EMAIL', () => Boolean(process.env.EMAIL_API_KEY && process.env.EMAIL_FROM), true),
+  EMAIL: EMAIL_ADAPTER,
   SMS: externalAdapter('SMS', () => Boolean(process.env.SMS_API_KEY), true),
   WHATSAPP: externalAdapter('WHATSAPP', () => Boolean(process.env.WHATSAPP_API_KEY), true),
 };

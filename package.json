@@ -29,7 +29,8 @@
     "walkthrough": "tsx scripts/api-walkthrough.mts",
     "routing": "tsx scripts/role-routing-check.mts",
     "mfa:browser": "tsx scripts/mfa-browser-check.mts",
-    "auth:browser": "tsx scripts/auth-browser-check.mts"
+    "auth:browser": "tsx scripts/auth-browser-check.mts",
+    "email:check": "tsx scripts/email-doctor.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.124.0",

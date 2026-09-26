@@ -6,7 +6,7 @@
  * used to enumerate accounts.
  */
 
-import { appUrl, sendAuthEmail } from '../../../../lib/email/auth-email';
+import { appUrl, emailService } from '../../../../lib/email/email-service';
 import { parseJsonBody, requestContext } from '../../../../lib/http/auth-context';
 import { errorResponse, ok, resolveRequestId } from '../../../../lib/http/response';
 import { registerSchema } from '../../../../lib/validation/auth';
@@ -27,14 +27,13 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     if (result.verificationToken) {
-      await sendAuthEmail({
+      await emailService().sendVerificationOTP({
         to: input.email,
-        kind: 'EMAIL_VERIFICATION',
         actionUrl: appUrl(`/verify-email?token=${result.verificationToken}`),
       });
     } else {
       // The address already exists. Tell the genuine owner, not the caller.
-      await sendAuthEmail({ to: input.email, kind: 'DUPLICATE_REGISTRATION' });
+      await emailService().sendDuplicateRegistrationNotice({ to: input.email });
     }
 
     // Deliberately does not echo the user id: that too would be an enumeration signal.

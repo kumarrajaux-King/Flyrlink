@@ -323,6 +323,70 @@ be used to enumerate.
 > `PENDING_VERIFICATION` that they were verified, and they would go and try to
 > sign in and get nowhere. It now checks `user.emailVerified`.
 
+## 9.5 Email delivery
+
+Every transactional message in the application goes through `lib/email`:
+
+```
+EmailService                     lib/email/email-service.ts
+  ├── sendVerificationOTP()
+  ├── sendPasswordReset()
+  ├── sendMFA()
+  ├── sendNotification()
+  └── sendDuplicateRegistrationNotice()
+        │
+   EmailTransport                lib/email/transport.ts
+        ├── resend               real HTTP, no SDK
+        └── console              DEV ONLY — delivers nothing, and says so
+```
+
+Nothing outside this directory knows which provider carries the mail. Notification
+channels (`services/notification/channels.ts`) route EMAIL through the same
+service, so a milestone notice and a password reset use one provider, one
+sender and one answer to "did it actually go?".
+
+> **No email had ever been sent by this application.** `sendAuthEmail` had two
+> branches: throw if `EMAIL_API_KEY` and `EMAIL_FROM` were both set — because
+> the adapter behind them was never written — or write a line to the server
+> console. There was no HTTP client anywhere under `lib/email`, and no
+> dependency that could have been one. Every account created through the
+> product was waiting on a message no code path could produce. `EMAIL_API_KEY`
+> was read by exactly one boolean and nothing else, which is worse than an
+> absent variable: setting it made the system *look* configured.
+
+**A transport reports what happened.** `DeliveryResult` is `SENT` or `NOT_SENT`
+with the transport's name, so a caller cannot mistake a no-op for a delivery.
+The development transport returns `NOT_SENT` and prints a block headed
+`EMAIL NOT SENT`. `assertEmailReady` throws on a production deployment with no
+provider, at the first send: verification and reset are load-bearing, and an
+account that cannot be verified cannot be used.
+
+**A provider refusal is not swallowed.** Resend answers 401 for a bad key, 403
+for an unverified sending domain, 422 for a `from` the account may not use. Each
+becomes an `EmailDeliveryError` carrying the provider's own text and the status,
+and registration answers 500 rather than telling somebody to check an inbox
+nothing was sent to.
+
+**Diagnose with `npm run email:check`** — it prints variable names and whether
+each is set, never a value, so it is safe to run in production and safe to
+paste into a ticket. `npm run email:check -- --send you@example.com` makes a
+real request and reports the real outcome, which is the only honest answer to
+"does mail work".
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `RESEND_API_KEY` | yes | Provider API key |
+| `EMAIL_FROM` | yes | Sender on a domain verified with the provider |
+| `APP_URL` | yes | Absolute base for links in emails |
+| `EMAIL_PROVIDER` | no | `resend` or `console`; inferred when unset |
+| `EMAIL_REPLY_TO` | no | Where replies go, if not the sender |
+
+**This flow issues a single-use link carrying a 256-bit token, not a short
+numeric code.** `sendVerificationOTP` keeps the name from the approved
+interface; its parameters describe what is actually sent. Moving to a numeric
+code would change `verificationMessage` and the verification service, and
+nothing else in this diagram.
+
 ## 10. Enumeration and email
 
 Registration and password-reset requests return **identical responses** whether or
