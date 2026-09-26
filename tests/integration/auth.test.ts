@@ -18,6 +18,7 @@ import { authorize } from '../../lib/authz/authorize';
 import { ROLE_NAMES } from '../../lib/authz/roles';
 import { prisma } from '../../lib/db/client';
 import {
+  VERIFICATION_RESEND_COOLDOWN_MS,
   changePassword,
   registerUser,
   requestPasswordReset,
@@ -343,10 +344,34 @@ describe.skipIf(!databaseAvailable)('password reset and change', () => {
     expect(unknown.resetToken).toBeUndefined();
   });
 
-  it('invalidates an earlier reset link when a new one is requested', async () => {
-    const { email } = await registerActive('reset-supersede');
+  it('ignores a second reset request inside the cooldown, so the first link still works', async () => {
+    // The cooldown exists because "forgot password" is unauthenticated and
+    // takes only an address: without it, anyone can point our mail server at
+    // somebody's inbox as fast as they can click. A suppressed request must be
+    // a complete no-op — issuing nothing and invalidating nothing — or the
+    // person is left holding a dead link and no replacement.
+    const { email } = await registerActive('reset-cooldown');
     const first = await requestPasswordReset({ email });
     const second = await requestPasswordReset({ email });
+
+    expect(second.resetToken).toBeUndefined();
+    expect(await resetPassword({ token: first.resetToken!, newPassword: 'passphrase number one' }))
+      .toBe('RESET');
+  });
+
+  it('invalidates an earlier reset link once the cooldown has passed', async () => {
+    const { userId, email } = await registerActive('reset-supersede');
+    const first = await requestPasswordReset({ email });
+
+    // Backdate the outstanding token rather than sleeping a minute: the rule
+    // under test is about elapsed time, not about wall-clock patience.
+    await prisma.verificationToken.updateMany({
+      where: { userId, type: 'PASSWORD_RESET', consumedAt: null },
+      data: { createdAt: new Date(Date.now() - VERIFICATION_RESEND_COOLDOWN_MS - 1000) },
+    });
+
+    const second = await requestPasswordReset({ email });
+    expect(second.resetToken).toBeDefined();
 
     expect(await resetPassword({ token: first.resetToken!, newPassword: 'passphrase number one' }))
       .toBe('INVALID_OR_EXPIRED');
@@ -438,8 +463,15 @@ describe.skipIf(!databaseAvailable)('MFA', () => {
       code: await generateTotpCode(start!.secret),
     });
     expect(satisfied.result).toBe('SATISFIED');
+    if (satisfied.result !== 'SATISFIED') return;
 
-    const cleared = await resolveSession(prisma, outcome.session.rawToken);
+    // The token is reissued, because clearing MFA raises what the session may
+    // do and a copy taken beforehand must not inherit that.
+    expect(satisfied.rawToken).not.toBe(outcome.session.rawToken);
+    expect(await resolveSession(prisma, outcome.session.rawToken)).toBeNull();
+
+    const cleared = await resolveSession(prisma, satisfied.rawToken);
+    expect(cleared?.sessionId).toBe(outcome.session.sessionId);
     expect(cleared?.actor.mfaSatisfied).toBe(true);
     expect(cleared?.mfaChallengePending).toBe(false);
   });
@@ -476,7 +508,10 @@ describe.skipIf(!databaseAvailable)('MFA', () => {
       sessionId: first.session.sessionId,
       backupCode,
     });
-    expect(used).toEqual({ result: 'SATISFIED', usedBackupCode: true });
+    expect(used).toMatchObject({ result: 'SATISFIED', usedBackupCode: true });
+    if (used.result !== 'SATISFIED') return;
+    // Rotated here too: a backup code clears the same gate a TOTP code does.
+    expect(used.rawToken).not.toBe(first.session.rawToken);
     expect(await countUnusedBackupCodes(userId)).toBe(9);
 
     const second = await login({ email, password: STRONG_PASSWORD });

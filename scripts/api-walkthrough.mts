@@ -568,6 +568,23 @@ async function main(): Promise<void> {
   });
   check(challenged.status === 200, 'the correct code clears the challenge', `${challenged.status}`);
 
+  // Clearing MFA reissues the session token — a copy taken before the
+  // elevation must not inherit what it bought. A browser follows the
+  // Set-Cookie without being asked; this script keeps cookies by hand, so it
+  // has to adopt the new one or everything after here is signed out.
+  const preElevation = admin.cookie;
+  admin.cookie = challenged.cookie ?? admin.cookie;
+  check(
+    Boolean(challenged.cookie) && challenged.cookie !== preElevation,
+    'and the session token is reissued with the privilege',
+    'the pre-elevation token no longer resolves',
+  );
+  check(
+    (await call('GET', '/api/admin/dashboard', { cookie: preElevation })).status === 401,
+    'the old token is dead',
+    '401',
+  );
+
   const dashboard = await call('GET', '/api/admin/dashboard', { cookie: admin.cookie });
   check(dashboard.status === 200, 'admin dashboard now readable', `${dashboard.status}`);
 

@@ -189,6 +189,15 @@ async function walk(role: RoleName): Promise<void> {
       cookie: signedIn.cookie!,
     });
     check(verified.status === 200, 'clears the challenge', `${verified.status}`);
+
+    // Clearing MFA reissues the token, so carry the new one from here. A
+    // browser does this automatically; this script keeps cookies by hand.
+    check(
+      Boolean(verified.cookie) && verified.cookie !== signedIn.cookie,
+      'and the session token is reissued with the privilege',
+      'a token copied before the challenge buys nothing after it',
+    );
+    signedIn = { ...signedIn, cookie: verified.cookie ?? signedIn.cookie };
   } else {
     check(
       signedIn.data?.mfaRequired === false,

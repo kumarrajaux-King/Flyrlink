@@ -28,7 +28,8 @@
     "db:verify": "prisma migrate status",
     "walkthrough": "tsx scripts/api-walkthrough.mts",
     "routing": "tsx scripts/role-routing-check.mts",
-    "mfa:browser": "tsx scripts/mfa-browser-check.mts"
+    "mfa:browser": "tsx scripts/mfa-browser-check.mts",
+    "auth:browser": "tsx scripts/auth-browser-check.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.124.0",

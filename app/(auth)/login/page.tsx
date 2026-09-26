@@ -112,6 +112,20 @@ function LoginForm() {
           {busy ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 text-[13px]">
+        <a href="/forgot-password" className="font-semibold text-brand-600 hover:text-brand-700">
+          Forgot your password?
+        </a>
+        {/*
+          The way back for somebody whose 24-hour verification link lapsed. It
+          was a dead end: the account cannot sign in, and registering again
+          fails on the unique email.
+        */}
+        <a href="/verify-email" className="text-ink-subtle hover:text-ink">
+          Need a new verification link?
+        </a>
+      </div>
     </div>
   );
 }

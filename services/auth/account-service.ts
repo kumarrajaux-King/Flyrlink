@@ -151,6 +151,20 @@ export async function registerUser(
   return { accepted: true, userId, verificationToken: verification.raw };
 }
 
+/**
+ * How long a freshly issued verification or reset email suppresses the next one.
+ *
+ * Without this, "resend" is an email cannon: anyone who knows an address can
+ * point it at that inbox as fast as they can click, and the mail lands from us.
+ * A minute is long enough to make that pointless and short enough that somebody
+ * who genuinely lost the first mail is not stuck.
+ *
+ * Enforced off the last unconsumed token's `createdAt`, so it is durable and
+ * shared across instances — the same reasoning as account lockout, and for the
+ * same reason as there, no in-process counter would do.
+ */
+export const VERIFICATION_RESEND_COOLDOWN_MS = 1000 * 60;
+
 export type VerifyEmailOutcome = 'VERIFIED' | 'ALREADY_VERIFIED' | 'INVALID_OR_EXPIRED';
 
 /** Consume an email-verification token and promote the account to ACTIVE. */
@@ -162,13 +176,34 @@ export async function verifyEmail(
 
   const record = await db.verificationToken.findUnique({
     where: { tokenHash },
-    select: { id: true, userId: true, expiresAt: true, consumedAt: true, type: true },
+    select: {
+      id: true,
+      userId: true,
+      expiresAt: true,
+      consumedAt: true,
+      type: true,
+      user: { select: { emailVerified: true } },
+    },
   });
 
   if (!record || record.type !== 'EMAIL_VERIFICATION' || !record.userId) {
     return 'INVALID_OR_EXPIRED';
   }
-  if (record.consumedAt) return 'ALREADY_VERIFIED';
+
+  /*
+   * "Already verified" is a fact about the ACCOUNT, not about the token.
+   *
+   * Reading it off `consumedAt` was wrong in two ways. A token is also
+   * consumed when it is superseded — `resendVerification` retires the
+   * outstanding links so only the newest works — and the old link then
+   * answered "already verified" to somebody whose account was still
+   * PENDING_VERIFICATION, who would go and try to sign in and get nowhere. It
+   * also mislabelled the rare case where the token was consumed by a race but
+   * the account update did not land.
+   */
+  if (record.consumedAt) {
+    return record.user?.emailVerified ? 'ALREADY_VERIFIED' : 'INVALID_OR_EXPIRED';
+  }
   if (isExpired(record.expiresAt)) return 'INVALID_OR_EXPIRED';
 
   await db.$transaction(async (tx) => {
@@ -198,6 +233,82 @@ export async function verifyEmail(
   return 'VERIFIED';
 }
 
+export interface ResendVerificationResult {
+  /** Always true — the response never reveals whether the email is registered. */
+  readonly accepted: true;
+  /** Raw token to email. Absent when there is nothing to send. */
+  readonly verificationToken?: string;
+}
+
+/**
+ * Issue a fresh verification link.
+ *
+ * A verification token lives 24 hours. Before this existed, letting one lapse
+ * was a dead end: the account could not sign in, and nothing in the product
+ * could issue another. Registering again fails on the unique email.
+ *
+ * Says nothing either way. No account, an already-verified one, and a
+ * cooled-down resend are indistinguishable from the caller's side — the same
+ * enumeration rule the rest of this module follows.
+ */
+export async function resendVerification(
+  params: { email: string; context?: RequestContext },
+  db: Db = prisma,
+): Promise<ResendVerificationResult> {
+  const email = params.email.trim().toLowerCase();
+
+  const user = await db.user.findUnique({
+    where: { email },
+    select: { id: true, deletedAt: true, emailVerified: true },
+  });
+  // Nothing to do, and nothing to say: no account, deleted, or already through.
+  if (!user || user.deletedAt || user.emailVerified) return { accepted: true };
+
+  const recent = await db.verificationToken.findFirst({
+    where: {
+      userId: user.id,
+      type: 'EMAIL_VERIFICATION',
+      consumedAt: null,
+      createdAt: { gt: new Date(Date.now() - VERIFICATION_RESEND_COOLDOWN_MS) },
+    },
+    select: { id: true },
+  });
+  if (recent) return { accepted: true };
+
+  const token = issueToken();
+
+  await db.$transaction(async (tx) => {
+    // Retire the outstanding links. Two live verification links for one address
+    // is one more than anybody needs, and the older one is the one an attacker
+    // would have had time to intercept.
+    await tx.verificationToken.updateMany({
+      where: { userId: user.id, type: 'EMAIL_VERIFICATION', consumedAt: null },
+      data: { consumedAt: new Date() },
+    });
+
+    await tx.verificationToken.create({
+      data: {
+        userId: user.id,
+        identifier: email,
+        tokenHash: token.hash,
+        type: 'EMAIL_VERIFICATION',
+        expiresAt: expiresAt(EMAIL_VERIFICATION_TTL_MS),
+      },
+    });
+
+    await writeAudit(tx, {
+      action: AUDIT_ACTIONS.USER_EMAIL_VERIFICATION_RESENT,
+      entityType: 'User',
+      entityId: user.id,
+      actorType: 'SYSTEM',
+      severity: 'NOTICE',
+      ...params.context,
+    });
+  });
+
+  return { accepted: true, verificationToken: token.raw };
+}
+
 export interface PasswordResetRequestResult {
   /** Always true — the response never reveals whether the email is registered. */
   readonly accepted: true;
@@ -218,6 +329,20 @@ export async function requestPasswordReset(
   if (!user || user.deletedAt) {
     return { accepted: true };
   }
+
+  // Same cooldown as verification, and for the same reason: "forgot password"
+  // is unauthenticated and takes only an address, so without one it is a way to
+  // bombard somebody's inbox with mail that genuinely came from us.
+  const recent = await db.verificationToken.findFirst({
+    where: {
+      userId: user.id,
+      type: 'PASSWORD_RESET',
+      consumedAt: null,
+      createdAt: { gt: new Date(Date.now() - VERIFICATION_RESEND_COOLDOWN_MS) },
+    },
+    select: { id: true },
+  });
+  if (recent) return { accepted: true };
 
   const token = issueToken();
 

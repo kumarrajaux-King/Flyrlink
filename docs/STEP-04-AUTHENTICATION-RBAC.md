@@ -263,11 +263,65 @@ absences.
 > is what somebody on a slow connection does. Every credential-bearing form now
 > carries `method="post"`.
 
-**Still open:** MFA challenge attempts are neither counted nor rate-limited.
-Sign-in failures lock an account after five (§11); `verifyMfaChallenge` has no
-equivalent, so a six-digit code with a ±1-step window — three valid values in a
-million — can be attempted without limit. The screens carry a `RATE_LIMITED`
-state for when the backend grows one. Tracked with the Phase 13 throttling work.
+### 9.3 Brute force, and rotation
+
+MFA failures now count against the **same** lockout the password path uses
+(`failedLoginCount` / `lockedUntil` on the user row). A failed second factor is
+a failed authentication attempt and has no business carrying a budget of its
+own. Before this, a six-digit code with a ±1-step window — three valid values
+in a million — could be attempted without limit, which made the second factor
+decorative against anyone willing to spend a few hours of traffic. A cleared
+challenge resets the counter, exactly as a correct password does.
+
+**Clearing MFA reissues the session token.** The row keeps its id, so audit
+history and anything referencing the session survive; only the secret the
+browser holds is replaced, and the expiry restarts. Raising what a session may
+do while leaving its identifier alone means any copy taken beforehand — fixed
+on the victim, read off a shared machine, captured before the upgrade —
+silently inherits the new authority. `rotateSession` is the standard "renew the
+session identifier on privilege change" rule applied to the one privilege
+change this system has. Callers must write the returned token to the cookie;
+not doing so signs the person out, which is the right way round for that
+mistake.
+
+## 9.4 The recovery screens
+
+| Route | What it is |
+| --- | --- |
+| `/verify-email` | Consumes the token from the registration email. Offers a fresh link when one has lapsed. |
+| `/forgot-password` | Asks for a reset link. Same answer registered or not. |
+| `/reset-password` | Consumes the token from the reset email and sets a new password. |
+
+> **These pages did not exist, and the emails linked to them.** Every account
+> created through the product landed on a 404 and could never be activated;
+> the whole password-recovery path ended the same way. The endpoints behind
+> them had been built and tested since Phase 4, which is exactly why it went
+> unnoticed — a service test proves the handler, and says nothing about whether
+> anything can reach it. Found by clicking the link in a browser.
+
+**A verification token is consumed by a POST from the page, not by visiting a
+GET route.** Mail clients and security scanners fetch links before a person
+sees them, so a single-use token handed to a GET is spent by a robot and the
+real recipient opens a dead link.
+
+**Resend** (`POST /api/auth/verify-email/resend`) closes the other dead end: a
+verification token lives 24 hours, and letting one lapse used to be terminal —
+the account cannot sign in, and registering again fails on the unique email.
+
+**Both mail-sending endpoints carry a one-minute cooldown**, enforced off the
+last unconsumed token's `createdAt` so it is durable and shared across
+instances. `forgot-password` and `resend` are unauthenticated and take only an
+address: without a cooldown either is a way to point our mail server at
+somebody's inbox as fast as a script can click. A suppressed request is a
+complete no-op — it issues nothing and invalidates nothing — so it cannot be
+used to strand somebody with a dead link, and it still answers 202 so it cannot
+be used to enumerate.
+
+> **"Already verified" is a fact about the account, not the token.** It used to
+> be read off `consumedAt`, which broke as soon as resend started retiring
+> superseded links: the old link then told somebody whose account was still
+> `PENDING_VERIFICATION` that they were verified, and they would go and try to
+> sign in and get nowhere. It now checks `user.emailVerified`.
 
 ## 10. Enumeration and email
 

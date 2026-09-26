@@ -155,12 +155,53 @@ export async function resolveSession(
   };
 }
 
-/** Mark a session as having cleared the MFA challenge. */
-export async function markSessionMfaSatisfied(db: Db, sessionId: string): Promise<void> {
-  await db.session.update({
-    where: { id: sessionId },
-    data: { mfaSatisfied: true },
+/**
+ * Reissue a session's token as its authority changes.
+ *
+ * WHY THE TOKEN CHANGES, NOT JUST THE FLAG
+ *   Clearing MFA raises what a session may do. If the identifier stays the
+ *   same across that step, any copy of it taken beforehand — a token fixed on
+ *   the victim, one read from a shared machine, one captured before the
+ *   upgrade — silently inherits the new authority. Reissuing means the
+ *   pre-elevation token buys exactly what it bought before: nothing
+ *   privileged, because it no longer resolves at all.
+ *
+ *   This is the standard rule ("renew the session identifier on privilege
+ *   change") applied to the one privilege change we have. The row keeps its
+ *   id, so audit history and anything referencing the session stay intact;
+ *   only the secret the browser holds is replaced.
+ *
+ *   The caller MUST write the returned token to the cookie. Not doing so
+ *   signs the person out, loudly rather than silently, which is the right way
+ *   round for this mistake.
+ */
+export async function rotateSession(
+  db: Db,
+  params: { sessionId: string; mfaSatisfied: boolean; context?: RequestContext },
+): Promise<{ rawToken: string; expiresAt: Date }> {
+  const { raw, hash } = issueToken();
+  // The clock restarts too: a session that just proved a second factor is as
+  // fresh as one that just signed in.
+  const expiry = expiresAt(SESSION_TTL_MS);
+
+  const updated = await db.session.updateMany({
+    where: { id: params.sessionId, revokedAt: null },
+    data: { sessionToken: hash, expiresAt: expiry, mfaSatisfied: params.mfaSatisfied },
   });
+  if (updated.count === 0) {
+    throw new Error(`Cannot rotate session ${params.sessionId}: it is revoked or gone.`);
+  }
+
+  await writeAudit(db, {
+    action: AUDIT_ACTIONS.SESSION_ROTATED,
+    entityType: 'Session',
+    entityId: params.sessionId,
+    severity: 'NOTICE',
+    afterState: { reason: 'mfa_satisfied', mfaSatisfied: params.mfaSatisfied },
+    ...params.context,
+  });
+
+  return { rawToken: raw, expiresAt: expiry };
 }
 
 /** Revoke a single session (logout). Idempotent. */

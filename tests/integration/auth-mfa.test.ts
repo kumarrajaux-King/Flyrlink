@@ -223,8 +223,14 @@ describe.skipIf(!available)('MFA is required of privileged roles, server-side', 
       body: { code: await generateTotpCode(secret) },
     });
     expect(verified.status, JSON.stringify(verified)).toBe(200);
+    // Clearing MFA reissues the token, so the browser's cookie changes here.
+    // Carrying the old one on would be signed out, which is the point.
+    expect(verified.cookie).toBeDefined();
+    expect(verified.cookie).not.toBe(cookie);
+    const elevated = verified.cookie!;
+    expect((await call(adminUsersRoute, 'GET', '/api/admin/users', { cookie })).status).toBe(401);
 
-    const admitted = await call(adminUsersRoute, 'GET', '/api/admin/users', { cookie });
+    const admitted = await call(adminUsersRoute, 'GET', '/api/admin/users', { cookie: elevated });
     expect(admitted.status, JSON.stringify(admitted)).toBe(200);
   });
 
@@ -304,11 +310,11 @@ describe.skipIf(!available)('MFA is required of privileged roles, server-side', 
     const secret = await enrol((await signIn(admin.email)).cookie!);
 
     const signedIn = await signIn(admin.email);
-    const cookie = signedIn.cookie!;
-    await call(mfaVerifyRoute, 'POST', '/api/auth/mfa/verify', {
-      cookie,
+    const verified = await call(mfaVerifyRoute, 'POST', '/api/auth/mfa/verify', {
+      cookie: signedIn.cookie!,
       body: { code: await generateTotpCode(secret) },
     });
+    const cookie = verified.cookie!;
     expect((await call(adminUsersRoute, 'GET', '/api/admin/users', { cookie })).status).toBe(200);
 
     const loggedOut = await call(logoutRoute, 'POST', '/api/auth/logout', { cookie });
@@ -448,7 +454,13 @@ describe.skipIf(!available)('sign up → sign in → session → role → MFA �
       body: { code: await generateTotpCode(secret) },
     });
     expect(verified.status, JSON.stringify(verified)).toBe(200);
+    // The session id is unchanged; the secret identifying it is not.
+    const elevated = verified.cookie!;
+    expect(elevated).not.toBe(cookie);
     expect((await call(sessionRoute, 'GET', '/api/auth/session', { cookie })).data).toMatchObject({
+      authenticated: false,
+    });
+    expect((await call(sessionRoute, 'GET', '/api/auth/session', { cookie: elevated })).data).toMatchObject({
       mfaSatisfied: true,
       mfaChallengePending: false,
     });
@@ -457,7 +469,7 @@ describe.skipIf(!available)('sign up → sign in → session → role → MFA �
     // A server component has no `Request`, so the page gate cannot be called
     // from here. What it *does* is exactly this: resolve the session, then ask
     // `authorize` for the union of permissions that admit a viewer to the path.
-    const resolved = await resolveSession(prisma, cookie.split('=')[1]!);
+    const resolved = await resolveSession(prisma, elevated.split('=')[1]!);
     expect(resolved).not.toBeNull();
     expect(landingPath(resolved!.actor.roles)).toBe('/admin');
     const gate = permissionsForDashboardPath('/admin');
@@ -466,18 +478,18 @@ describe.skipIf(!available)('sign up → sign in → session → role → MFA �
       'an enrolled, cleared ADMIN must be admitted to /admin',
     ).toBe(true);
     // And the API behind that screen now answers.
-    expect((await call(adminUsersRoute, 'GET', '/api/admin/users', { cookie })).status).toBe(200);
+    expect((await call(adminUsersRoute, 'GET', '/api/admin/users', { cookie: elevated })).status).toBe(200);
 
     // ------------------------------------------------------------- LOGOUT
-    expect((await call(logoutRoute, 'POST', '/api/auth/logout', { cookie })).status).toBe(204);
+    expect((await call(logoutRoute, 'POST', '/api/auth/logout', { cookie: elevated })).status).toBe(204);
 
     // ---------------------------------------------- PROTECTED ROUTE BLOCKED
-    expect((await call(adminUsersRoute, 'GET', '/api/admin/users', { cookie })).status).toBe(401);
-    expect((await call(projectsRoute, 'GET', '/api/projects', { cookie })).status).toBe(401);
-    expect((await call(sessionRoute, 'GET', '/api/auth/session', { cookie })).data).toMatchObject({
+    expect((await call(adminUsersRoute, 'GET', '/api/admin/users', { cookie: elevated })).status).toBe(401);
+    expect((await call(projectsRoute, 'GET', '/api/projects', { cookie: elevated })).status).toBe(401);
+    expect((await call(sessionRoute, 'GET', '/api/auth/session', { cookie: elevated })).data).toMatchObject({
       authenticated: false,
     });
     // The row itself is revoked, not merely un-presented.
-    expect(await resolveSession(prisma, cookie.split('=')[1]!)).toBeNull();
+    expect(await resolveSession(prisma, elevated.split('=')[1]!)).toBeNull();
   });
 });

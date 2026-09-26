@@ -26,6 +26,7 @@ export const AUDIT_ACTIONS = {
   USER_LOGIN_BLOCKED: 'user.login.blocked',
   USER_LOGGED_OUT: 'user.logged_out',
   USER_EMAIL_VERIFIED: 'user.email.verified',
+  USER_EMAIL_VERIFICATION_RESENT: 'user.email.verification_resent',
   // Credentials
   PASSWORD_RESET_REQUESTED: 'user.password.reset_requested',
   PASSWORD_RESET_COMPLETED: 'user.password.reset_completed',
@@ -40,6 +41,7 @@ export const AUDIT_ACTIONS = {
   MFA_BACKUP_CODES_REGENERATED: 'user.mfa.backup_codes_regenerated',
   // Sessions
   SESSION_CREATED: 'session.created',
+  SESSION_ROTATED: 'session.rotated',
   SESSION_REVOKED: 'session.revoked',
   SESSIONS_REVOKED_ALL: 'session.revoked_all',
   // AI agentic system
