@@ -7,7 +7,7 @@
  * at `resolveSession`, so there is one place that decides what a token means.
  *
  * WHY PAGES RESOLVE THE SESSION THEMSELVES
- *   `middleware.ts` redirects a visitor with no session cookie, but that is a
+ *   `proxy.ts` redirects a visitor with no session cookie, but that is a
  *   convenience and never the control: it sees only that a cookie exists, not
  *   whether it is valid, revoked, expired, or attached to an active account.
  *   Every protected page re-resolves here, server-side, before rendering

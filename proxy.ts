@@ -1,6 +1,8 @@
 /**
- * Next.js middleware — two cheap, early checks. Neither is the security
- * boundary.
+ * Next.js proxy — two cheap, early checks. Neither is the security boundary.
+ *
+ * (This was `middleware.ts` until Next 16 renamed the convention. Same file,
+ * same job — the build warned on every deploy until it was renamed.)
  *
  * WHY THERE IS NO RBAC HERE
  *   Middleware runs before the route, on a runtime where the Prisma client and
@@ -43,7 +45,7 @@ const AUTHENTICATED_PREFIXES = [
   '/notifications',
 ];
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith('/api/')) {
@@ -53,7 +55,7 @@ export function middleware(request: NextRequest): NextResponse {
           error: {
             code: 'CROSS_ORIGIN_REQUEST',
             message: 'This request did not come from this site.',
-            requestId: request.headers.get('x-request-id') ?? 'middleware',
+            requestId: request.headers.get('x-request-id') ?? 'proxy',
           },
         },
         { status: 403 },
