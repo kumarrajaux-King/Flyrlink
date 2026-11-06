@@ -2,7 +2,7 @@
 
 A production-grade marketplace where the client describes an **outcome**, and the platform understands the requirement, plans the project, finds the right expert or team, coordinates execution, monitors risk, and manages the commercial workflow.
 
-> **Status: backends for Phases 4, 6, 7, 8 and 9 complete; Phase 8 approved.** The database (59 models) is migrated and seeded. Authentication + RBAC, the AI agentic system, the Project/Contract/Milestone/Payment state machines, the admin control plane and messaging/notifications are implemented and tested (2,131 tests, against real PostgreSQL). The only UI is a sample home page preview; the rest is blocked on design inputs (`M-06`, `M-07`). See [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md).
+> **Status: backends for Phases 4, 6, 7, 8 and 9 complete; Phase 8 approved.** The database (59 models) is migrated and seeded. Authentication + RBAC, the AI agentic system, the Project/Contract/Milestone/Payment state machines, the admin control plane and messaging/notifications are implemented and tested (2,308 tests, against real PostgreSQL 17). The UI covers the marketing home page, the complete authentication product — registration, email verification, sign-in, MFA, password reset — and a role-aware dashboard shell with server-side RBAC enforced on every route. The workspace screens behind that shell are deliberate, labelled stubs, blocked on design inputs (`M-06`, `M-07`). See [`docs/DEVELOPMENT-PHASES.md`](docs/DEVELOPMENT-PHASES.md).
 
 ## Documentation
 

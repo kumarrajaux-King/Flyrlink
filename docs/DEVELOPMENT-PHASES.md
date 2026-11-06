@@ -7,7 +7,7 @@ Maintained continuously. Updated at the end of every phase.
 | 1 | UX + Product Architecture | ✅ **Signed off** (2026-09-10) | `STEP-01-UX-PRODUCT-ARCHITECTURE.md` |
 | 2 | Technical Architecture | ✅ **Signed off** (2026-09-10) | `STEP-02-TECHNICAL-ARCHITECTURE.md` |
 | 3 | Database Architecture | ✅ **Complete — migration applied, seed run; awaiting sign-off** | `STEP-03-DATABASE-ARCHITECTURE.md`, `prisma/schema.prisma`, 2 migrations, seed, `domain/money/`, `docker-compose.yml` |
-| 4 | Authentication + RBAC | ✅ **Backend complete — awaiting sign-off; UI blocked by `M-01`** | `STEP-04-AUTHENTICATION-RBAC.md`, `lib/auth*`, `services/auth/`, 13 API routes |
+| 4 | Authentication + RBAC | ✅ **Complete, backend and UI — awaiting sign-off.** `M-01` closed: the screens exist | `STEP-04-AUTHENTICATION-RBAC.md`, `lib/auth*`, `services/auth/`, 13 API routes, `app/(auth)/**`, `components/auth/` |
 | 5 | Expert Marketplace | ⏭️ **Next — blocked by `M-01` (Figma)** | |
 | 6 | Customer Project Marketplace | ✅ **Lifecycle backend complete — awaiting architecture review.** UI not started (blocked by `M-06`/`M-07`) | `STEP-06-LIFECYCLE.md`, `domain/*/state-machine.ts`, `services/lifecycle/`, 4 API routes |
 | 7 | AI Agentic System | ✅ **Implemented — awaiting review** | `AI-AGENT-ARCHITECTURE.md`, `ai/`, `services/ai/`, 7 API routes |
@@ -250,6 +250,64 @@ server-side with nothing exposing it (open decision C-05).
 container already had rather than Docker or the PGlite bridge. The intermittent `ai-orchestrator.test.ts`
 connection failures reported in `STEP-08-ADMIN-OPERATIONS.md` §15 **did not recur**, confirming the Phase 8
 diagnosis that they were the Docker-less bridge and not application code.
+
+### 2026-09-26 — Authentication product, email provider and Vercel build
+
+Delivered on branch `main-tve2sf`, which was never merged into `main`. Thirteen commits, 155 files.
+This tracker was not updated at the time; the entry below is reconstructed from those commits.
+
+- **Authentication, end to end.** The screens the STEP-04 backend had been waiting for: sign-up,
+  sign-in, email verification, password reset, and MFA enrollment and challenge. The Home Page
+  "Sign In" reaches the real login, and the `/dashboard` redirect loop that sent a viewer to a
+  surface their role would refuse is fixed.
+- **A role-aware dashboard shell** with RBAC enforced server-side on every route. Areas beyond it
+  render a labelled "Not built yet" panel rather than an invented screen — the `M-06`/`M-07` block is
+  held honestly in the UI instead of being worked around.
+- **Email behind a provider-independent service.** With no provider configured in development the
+  envelope and verification link are written to the server log rather than dropped silently.
+- **Security fixes:** redaction no longer corrupts identifiers, and MFA is enforced for privileged
+  roles (`A-08`).
+- **Vercel build:** `prisma generate` in both `postinstall` and `build`; the lockfile was synced with
+  `package.json` on 2026-10-29.
+
+`M-01` is closed for authentication — those screens exist. `M-06` and `M-07` still block the
+workspace surfaces behind the shell.
+
+### 2026-11-06 — Full verification on a Docker-less Mac
+
+Every gate run against a clean checkout on macOS 15.4.1 (Intel, no Docker, no Homebrew, Node 24.22.1):
+
+| Gate | Result |
+| --- | --- |
+| `npm ci` | lockfile in sync |
+| `npm run typecheck` | zero errors |
+| `npm run lint` | zero warnings |
+| `npm run build` | clean — **with no `.env` present**, so the `DEPLOYMENT.md` §2 property holds |
+| `npm run db:migrate:deploy` | 4/4 applied, no drift |
+| `npm test` | **2,308 passed / 2,308**, 51.6s |
+
+The recorded test count had drifted: 2,131 at Phase 9, 2,308 today. The 177 tests that arrived with
+the authentication product were never logged. The Phase 9 figure is left as written — it is a
+historical record of that phase, not a claim about today.
+
+**The PGlite bridge cannot run the integration suite.** Four configurations of
+`scripts/pglite-server.mjs` — default workers, `connection_limit=1`, a repeat, and a single reused
+worker with `--no-isolate` — failed with 94, 96, 97 and 98 errors. Every failure was `P1017`
+("server has closed the connection") or `DriverAdapterError: ConnectionClosed`, every failing file was
+in `tests/integration/`, and no unit test failed in any run. The counts drift between identical runs,
+which is the signature of a connection problem rather than a logic one. Against real PostgreSQL 17.11
+the same suite passes completely. See `DEPLOYMENT.md` §6 for the Docker-less path.
+
+Verified by hand in a browser against the running app: enumeration-safe registration (`A-09`), the
+development email transport, email verification, sign-in, and a `CUSTOMER` requesting `/admin` being
+redirected to `/dashboard?denied=1`. Deleting a signed-in user left no orphaned sessions, roles or MFA
+codes, and that user's live session cookie was rejected cleanly to `/login?next=%2Fdashboard` rather
+than erroring.
+
+**Open and unchanged:** `main` is 13 commits behind this branch. `next@16.3.4` carries a critical
+advisory in `next/og` — not imported anywhere in this codebase, fixed in `16.4.5`. `npm audit` reports
+22 vulnerabilities (1 critical, 9 high); of these the Zod advisory on oversized constrained collections
+is the one that sits on the request-validation path.
 
 ## Open decisions requiring sign-off
 

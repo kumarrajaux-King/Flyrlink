@@ -130,6 +130,66 @@ npm test
 npm run build
 ```
 
+`npm test` needs a **real PostgreSQL server**. Typecheck, lint and build need
+nothing. If you have no Docker, read §7 before concluding the suite is broken.
+
 Add a GitHub Actions workflow running those four when the team wants the gate
 enforced rather than remembered. It is deliberately not added here — the checks
 exist and pass, and unused CI that nobody reads is worse than none.
+
+
+## 7. A test database without Docker
+
+`docker-compose.yml` is the primary path. On a machine with no Docker — and no
+Homebrew with which to install one — the integration suite still needs a real
+PostgreSQL server. `scripts/pglite-server.mjs` is **not** sufficient for it.
+
+### What PGlite can and cannot do
+
+The bridge serves one connection at a time. Vitest isolates every test file in
+its own process, so the ten suites in `tests/integration/` open connections it
+cannot hold and fail with `P1017` ("server has closed the connection") and
+`DriverAdapterError: ConnectionClosed`.
+
+This is not fixed by `connection_limit=1`, by `fileParallelism: false`, or by
+collapsing the run into one reused worker with
+`--pool=forks --maxWorkers=1 --no-isolate`. Measured on 2026-11-06, those
+configurations produced 94, 97 and 98 failures; the count drifts between
+identical runs, and no unit test fails in any of them. Against real PostgreSQL
+17.11 the same suite passes 2,308/2,308 in 51.6s.
+
+Use PGlite for `tests/unit/**` and as a development server. Use a real engine
+for the full suite.
+
+### Postgres.app — no Homebrew, no admin password
+
+Download the PostgreSQL 17 image from the project's GitHub releases
+(`github.com/PostgresApp/PostgresApp`, notarized, Developer ID Jakob Egger),
+copy `Postgres.app` into `/Applications`, then initialise a cluster whose
+encoding, locale and superuser match `docker-compose.yml`:
+
+```bash
+BIN="/Applications/Postgres.app/Contents/Versions/17/bin"
+DATA="$HOME/Library/Application Support/Postgres/var-17"
+
+"$BIN/initdb" -D "$DATA" -U postgres --encoding=UTF8 --locale=C
+"$BIN/pg_ctl" -D "$DATA" -o "-p 5432 -k /tmp" -l "$DATA/server.log" -w start
+"$BIN/createdb" -h 127.0.0.1 -p 5432 -U postgres marketplace_dev
+```
+
+Then point `.env` at it and run the suite as normal:
+
+```bash
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/marketplace_dev?schema=public"
+```
+
+```bash
+npm run db:migrate:deploy && npm test
+```
+
+Two things to know. `initdb -U postgres` creates **only** that role, so any
+client that defaults to your macOS username fails with
+`role "<you>" does not exist`; create a matching superuser if you want bare
+`psql` and GUI clients to connect. And `initdb` leaves local connections on
+`trust` authentication — correct for a loopback development cluster, and never
+to be carried beyond one.
