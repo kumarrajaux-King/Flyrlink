@@ -21,12 +21,12 @@ const monaSans = Mona_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Flyrlink — The right expert or team, matched by AI',
-    template: '%s · Flyrlink',
+    // Page titles follow landing-pages.md §8: "<page title> | Flyrlink".
+    default: 'Hire verified experts, matched by AI | Flyrlink',
+    template: '%s | Flyrlink',
   },
   description:
-    'Describe what you want to build. Flyrlink structures the brief, estimates the work, and matches you ' +
-    'with verified experts — with contracts, milestones and protected payments built in.',
+    'Describe your project and get a shortlist of verified experts, with milestone escrow and contracts built in.',
 };
 
 export const viewport: Viewport = {

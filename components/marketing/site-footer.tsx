@@ -18,16 +18,20 @@ const COLUMNS: readonly { readonly title: string; readonly links: readonly Foote
   {
     title: 'Platform',
     links: [
-      { label: 'Discover Experts', href: '#experts' },
-      { label: 'Find Services', href: '#categories' },
       { label: 'How It Works', href: '#how-it-works' },
-      { label: 'AI Advantage', href: '#ai' },
-      { label: 'Trust & Safety', href: '#trust' },
+      { label: 'Discover Experts', href: '#experts' },
+      { label: 'Verification', href: '#verification' },
+      { label: 'Escrow & Security', href: '#escrow' },
+      { label: 'Pricing', href: '#pricing' },
     ],
   },
   {
     title: 'For experts',
-    links: [{ label: 'Become an Expert', href: '#become-an-expert' }, { label: 'Expert guidelines' }, { label: 'Verification' }],
+    links: [
+      { label: 'Become an Expert', href: '#become-an-expert' },
+      { label: 'How matching works', href: '#how-it-works' },
+      { label: 'Expert guidelines' },
+    ],
   },
   {
     title: 'Company',

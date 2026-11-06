@@ -27,10 +27,10 @@ export function announcePreview(message: string): void {
 
 /** What a preview-only action says instead of pretending to work. */
 export const PREVIEW_MESSAGES = {
-  signIn: 'Sign-in arrives with the account screens. This build is a Home Page preview.',
   browseExperts: 'The full Browse Experts screen is a later phase. The profiles on this page are a preview.',
   postProject: 'Posting a project opens with the project flow. Nothing was sent or saved.',
   becomeExpert: 'Expert applications open with expert onboarding. Nothing was submitted.',
+  enterpriseContact: 'The enterprise contact form arrives with /enterprise. Nothing was sent.',
   expertProfile: 'Expert profile pages arrive with Browse Experts.',
   newsletter: 'Newsletter sign-up is not connected in this preview. Nothing was sent or stored.',
   footerLink: 'That page is not part of the Home Page preview.',

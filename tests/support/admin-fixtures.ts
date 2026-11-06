@@ -8,7 +8,7 @@
  * services or routes.
  */
 
-import type { RoleName } from '../../lib/authz/roles';
+import { type RoleName, requiresMfa } from '../../lib/authz/roles';
 import { prisma } from '../../lib/db/client';
 import { type Person, createLifecycleWorld } from './lifecycle-fixtures';
 
@@ -38,6 +38,7 @@ export async function createAdminWorld(label: string) {
       emailVerified?: boolean;
       failedLoginCount?: number;
       lockedUntil?: Date | null;
+      mfaEnrolled?: boolean;
     } = {},
   ): Promise<Person> {
     const status = options.status ?? 'ACTIVE';
@@ -49,6 +50,11 @@ export async function createAdminWorld(label: string) {
         emailVerified: options.emailVerified === false ? null : new Date(),
         failedLoginCount: options.failedLoginCount ?? 0,
         lockedUntil: options.lockedUntil ?? null,
+        // A role in the MFA-required set has to have a second factor enrolled
+        // before any session of theirs can count as cleared, so a fixture that
+        // wants a working administrator has to enrol one. `options.mfaEnrolled:
+        // false` is how a test asks for the administrator who never did.
+        mfaEnabled: options.mfaEnrolled ?? requiresMfa(roles),
       },
       select: { id: true },
     });

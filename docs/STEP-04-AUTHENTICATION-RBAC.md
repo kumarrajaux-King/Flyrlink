@@ -59,6 +59,14 @@ Why this is the right trade rather than a compromise:
 - The genuinely dangerous primitives are delegated to vetted libraries: `argon2` for hashing, `node:crypto` for token generation and timing-safe comparison, `otplib` for TOTP. No cryptography was written here.
 - The cost is that we own more code. That is paid for with 198 tests, including negative tests for every refusal path.
 
+**Environment variables that went with it.** `AUTH_SECRET` and `AUTH_URL` were
+listed in STEP 2 §14 for Auth.js and are dead here. No code reads either, and
+nothing should start to: a session token is 256 bits of CSPRNG output stored as
+a SHA-256 digest, so there is no signed artefact and therefore no signing key,
+and the one base URL the application needs is `APP_URL`. Both names have been
+removed from `.env.example` so a deployment is not asked for a secret that would
+then sit unused — an unused secret is still a secret to leak.
+
 ## 4. Architecture
 
 ```
@@ -187,6 +195,197 @@ own security and then act with no second factor.
 > still displaying that same code, which was then rejected as a replay. Replay
 > protection now applies only to the challenge path, where an intercepted code
 > could actually be reused to authenticate.
+
+### 9.1 Enforcement, and the hole that was in it
+
+For a role in `MFA_REQUIRED_ROLES`, a session counts as MFA-satisfied only when
+the account has **enrolled** a factor *and* has **cleared** it on *that* session.
+
+That sounds like what the code always said, and it was not. `login` minted the
+session with `mfaSatisfied: !user.mfaEnabled` — "this account has no MFA, so
+there is no MFA outstanding" — which is right for a customer and exactly wrong
+for an administrator who never enrolled: they got a fully cleared privileged
+session behind a password alone. `authorize` could not see it, because the
+session told it MFA was satisfied and it had no reason to doubt the session. The
+gap was visible in the product (`securityOverview` has counted
+`privilegedWithoutMfa` since Phase 8) and was not closed.
+
+It is now applied in two independent places, both server-side:
+
+| Where | What it does |
+| --- | --- |
+| `login` | Mints the session un-cleared when a factor is outstanding *or* an MFA-required role has none enrolled, and returns `MFA_ENROLLMENT_REQUIRED` so the caller is sent to enrollment rather than to a challenge it cannot answer |
+| `resolveSession` | Re-derives the flag on **every request** from the roles held now and the factors enrolled now (`mfaSatisfiedForSession`), so a role granted mid-session cannot ride a flag set before the grant, and a forged `mfaSatisfied` row buys nothing |
+
+`requirePermissionOnPage` now asks `authorize` rather than reading the
+permission table directly, so a whole screen is gated by the same decision
+function every service uses — account standing and the MFA gate included.
+Checking the table alone let an un-cleared administrator render the entire
+control plane and only meet a refusal when a panel went to fetch something.
+
+### 9.2 The screens
+
+| Route | What it is |
+| --- | --- |
+| `/dashboard/security/mfa` | Two-phase enrollment: QR code, the same secret as text for manual entry, then the code that proves it. Ends on the backup codes, shown once. |
+| `/login/mfa` | The challenge. TOTP or a backup code, with cancel-and-sign-out. |
+
+Both talk only to the endpoints in §12; neither has an API of its own.
+
+**The challenge is a route, not a stage.** It used to be a `useState` stage
+inside the sign-in form, and a refresh mid-challenge dropped the person back on
+the credentials step with a live session cookie already set, asking again for a
+password they had just proven. A URL survives a refresh; React state does not.
+`/login/mfa` re-reads the session server-side and routes on what it finds — no
+session to `/login`, no factor enrolled to enrollment, already cleared straight
+through — so a stale answer from the sign-in page changes nothing.
+
+**Enrollment is gated on being signed in, and nothing more.** A permission gate
+there would refuse exactly the person the screen exists for: `authorize` applies
+the MFA rule to the actor rather than to the permission, so an un-cleared
+administrator holds no usable permission at all. The screen acts only on the
+signed-in account's own factor, through endpoints that take the user from the
+session.
+
+**The secret is never written anywhere durable** — not `localStorage`, not
+`sessionStorage`, not a query string, and not a URL an `<img>` QR code would be
+fetched from. It is rendered in the page as an inline SVG (`qrcode-generator`,
+zero dependencies, MIT) and as selectable text, and it is held in React state
+for the length of the setup. The browser walkthrough asserts all three
+absences.
+
+> **A defect the browser test found.** Every form in the application was a
+> `<form>` with no `method`, which is a GET. Until React hydrates there is no
+> `onSubmit` to call `preventDefault`, so a submit in that window was a real
+> navigation to `/login?email=…&password=…` — the password in the address bar,
+> in history, and in every access log along the way. A narrow race, and a race
+> is not a defence: a browser test clicking faster than hydration hit it, which
+> is what somebody on a slow connection does. Every credential-bearing form now
+> carries `method="post"`.
+
+### 9.3 Brute force, and rotation
+
+MFA failures now count against the **same** lockout the password path uses
+(`failedLoginCount` / `lockedUntil` on the user row). A failed second factor is
+a failed authentication attempt and has no business carrying a budget of its
+own. Before this, a six-digit code with a ±1-step window — three valid values
+in a million — could be attempted without limit, which made the second factor
+decorative against anyone willing to spend a few hours of traffic. A cleared
+challenge resets the counter, exactly as a correct password does.
+
+**Clearing MFA reissues the session token.** The row keeps its id, so audit
+history and anything referencing the session survive; only the secret the
+browser holds is replaced, and the expiry restarts. Raising what a session may
+do while leaving its identifier alone means any copy taken beforehand — fixed
+on the victim, read off a shared machine, captured before the upgrade —
+silently inherits the new authority. `rotateSession` is the standard "renew the
+session identifier on privilege change" rule applied to the one privilege
+change this system has. Callers must write the returned token to the cookie;
+not doing so signs the person out, which is the right way round for that
+mistake.
+
+## 9.4 The recovery screens
+
+| Route | What it is |
+| --- | --- |
+| `/verify-email` | Consumes the token from the registration email. Offers a fresh link when one has lapsed. |
+| `/forgot-password` | Asks for a reset link. Same answer registered or not. |
+| `/reset-password` | Consumes the token from the reset email and sets a new password. |
+
+> **These pages did not exist, and the emails linked to them.** Every account
+> created through the product landed on a 404 and could never be activated;
+> the whole password-recovery path ended the same way. The endpoints behind
+> them had been built and tested since Phase 4, which is exactly why it went
+> unnoticed — a service test proves the handler, and says nothing about whether
+> anything can reach it. Found by clicking the link in a browser.
+
+**A verification token is consumed by a POST from the page, not by visiting a
+GET route.** Mail clients and security scanners fetch links before a person
+sees them, so a single-use token handed to a GET is spent by a robot and the
+real recipient opens a dead link.
+
+**Resend** (`POST /api/auth/verify-email/resend`) closes the other dead end: a
+verification token lives 24 hours, and letting one lapse used to be terminal —
+the account cannot sign in, and registering again fails on the unique email.
+
+**Both mail-sending endpoints carry a one-minute cooldown**, enforced off the
+last unconsumed token's `createdAt` so it is durable and shared across
+instances. `forgot-password` and `resend` are unauthenticated and take only an
+address: without a cooldown either is a way to point our mail server at
+somebody's inbox as fast as a script can click. A suppressed request is a
+complete no-op — it issues nothing and invalidates nothing — so it cannot be
+used to strand somebody with a dead link, and it still answers 202 so it cannot
+be used to enumerate.
+
+> **"Already verified" is a fact about the account, not the token.** It used to
+> be read off `consumedAt`, which broke as soon as resend started retiring
+> superseded links: the old link then told somebody whose account was still
+> `PENDING_VERIFICATION` that they were verified, and they would go and try to
+> sign in and get nowhere. It now checks `user.emailVerified`.
+
+## 9.5 Email delivery
+
+Every transactional message in the application goes through `lib/email`:
+
+```
+EmailService                     lib/email/email-service.ts
+  ├── sendVerificationOTP()
+  ├── sendPasswordReset()
+  ├── sendMFA()
+  ├── sendNotification()
+  └── sendDuplicateRegistrationNotice()
+        │
+   EmailTransport                lib/email/transport.ts
+        ├── resend               real HTTP, no SDK
+        └── console              DEV ONLY — delivers nothing, and says so
+```
+
+Nothing outside this directory knows which provider carries the mail. Notification
+channels (`services/notification/channels.ts`) route EMAIL through the same
+service, so a milestone notice and a password reset use one provider, one
+sender and one answer to "did it actually go?".
+
+> **No email had ever been sent by this application.** `sendAuthEmail` had two
+> branches: throw if `EMAIL_API_KEY` and `EMAIL_FROM` were both set — because
+> the adapter behind them was never written — or write a line to the server
+> console. There was no HTTP client anywhere under `lib/email`, and no
+> dependency that could have been one. Every account created through the
+> product was waiting on a message no code path could produce. `EMAIL_API_KEY`
+> was read by exactly one boolean and nothing else, which is worse than an
+> absent variable: setting it made the system *look* configured.
+
+**A transport reports what happened.** `DeliveryResult` is `SENT` or `NOT_SENT`
+with the transport's name, so a caller cannot mistake a no-op for a delivery.
+The development transport returns `NOT_SENT` and prints a block headed
+`EMAIL NOT SENT`. `assertEmailReady` throws on a production deployment with no
+provider, at the first send: verification and reset are load-bearing, and an
+account that cannot be verified cannot be used.
+
+**A provider refusal is not swallowed.** Resend answers 401 for a bad key, 403
+for an unverified sending domain, 422 for a `from` the account may not use. Each
+becomes an `EmailDeliveryError` carrying the provider's own text and the status,
+and registration answers 500 rather than telling somebody to check an inbox
+nothing was sent to.
+
+**Diagnose with `npm run email:check`** — it prints variable names and whether
+each is set, never a value, so it is safe to run in production and safe to
+paste into a ticket. `npm run email:check -- --send you@example.com` makes a
+real request and reports the real outcome, which is the only honest answer to
+"does mail work".
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `RESEND_API_KEY` | yes | Provider API key |
+| `EMAIL_FROM` | yes | Sender on a domain verified with the provider |
+| `APP_URL` | yes | Absolute base for links in emails |
+| `EMAIL_PROVIDER` | no | `resend` or `console`; inferred when unset |
+| `EMAIL_REPLY_TO` | no | Where replies go, if not the sender |
+
+**This flow issues a single-use link carrying a 256-bit token, not a short
+numeric code.** `sendVerificationOTP` keeps the name from the approved
+interface; its parameters describe what is actually sent. Moving to a numeric
+code would change `verificationMessage` and the verification service, and
+nothing else in this diagram.
 
 ## 10. Enumeration and email
 

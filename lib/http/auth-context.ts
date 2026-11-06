@@ -11,7 +11,7 @@
  *   not available, and it sees only the cookie. Treating a cookie's mere presence
  *   as authentication would be exactly the "never trust the client" violation the
  *   architecture forbids. So authorization happens *inside* route handlers and
- *   services, where the database is reachable, and `middleware.ts` is limited to
+ *   services, where the database is reachable, and `proxy.ts` is limited to
  *   cheap redirects.
  */
 

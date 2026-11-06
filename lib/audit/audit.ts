@@ -26,6 +26,7 @@ export const AUDIT_ACTIONS = {
   USER_LOGIN_BLOCKED: 'user.login.blocked',
   USER_LOGGED_OUT: 'user.logged_out',
   USER_EMAIL_VERIFIED: 'user.email.verified',
+  USER_EMAIL_VERIFICATION_RESENT: 'user.email.verification_resent',
   // Credentials
   PASSWORD_RESET_REQUESTED: 'user.password.reset_requested',
   PASSWORD_RESET_COMPLETED: 'user.password.reset_completed',
@@ -40,6 +41,7 @@ export const AUDIT_ACTIONS = {
   MFA_BACKUP_CODES_REGENERATED: 'user.mfa.backup_codes_regenerated',
   // Sessions
   SESSION_CREATED: 'session.created',
+  SESSION_ROTATED: 'session.rotated',
   SESSION_REVOKED: 'session.revoked',
   SESSIONS_REVOKED_ALL: 'session.revoked_all',
   // AI agentic system
@@ -75,6 +77,25 @@ export const AUDIT_ACTIONS = {
   ADMIN_INTERVENTION_REQUESTED: 'admin.intervention.requested',
   ADMIN_INTERVENTION_COMPLETED: 'admin.intervention.completed',
   ADMIN_ACTION_DENIED: 'admin.action.denied',
+  // Project intake (the client entry flow)
+  PROJECT_CREATED: 'project.created',
+  PROJECT_DRAFT_UPDATED: 'project.draft_updated',
+  // Messaging and collaboration (Phase 9)
+  //
+  // Sending a message is NOT audited: the message row is already the record,
+  // and duplicating every line of every conversation into the audit log would
+  // bury the events an operator is actually looking for. What is audited is
+  // everything that changes the shape of the record — a thread opening, someone
+  // leaving it, a message being rewritten or withdrawn — and every time
+  // platform staff read correspondence they are not party to.
+  CONVERSATION_OPENED: 'messaging.conversation.opened',
+  CONVERSATION_ARCHIVED: 'messaging.conversation.archived',
+  CONVERSATION_MEMBER_LEFT: 'messaging.conversation.member_left',
+  CONVERSATION_READ_BY_OVERSIGHT: 'messaging.conversation.oversight_read',
+  MESSAGE_EDITED: 'messaging.message.edited',
+  MESSAGE_DELETED: 'messaging.message.deleted',
+  ATTACHMENT_UPLOADED: 'messaging.attachment.uploaded',
+  ATTACHMENT_DELETED: 'messaging.attachment.deleted',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

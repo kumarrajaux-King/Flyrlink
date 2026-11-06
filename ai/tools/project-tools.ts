@@ -16,6 +16,7 @@
 import { z } from 'zod';
 
 import type { Prisma } from '../../src/generated/prisma/client';
+import { notify } from '../../services/notification/notification-service';
 import { registerTool, type ToolContext } from './registry';
 
 const scoreBasisPoints = z.number().int().min(0).max(10_000);
@@ -578,26 +579,22 @@ export const sendNotificationTool = registerTool({
   }),
   outputSchema: z.object({ notificationId: z.string().nullable() }),
   handler: async (input, context: ToolContext) => {
-    const user = await context.db.user.findFirst({
-      where: { id: input.userId, deletedAt: null },
-      select: { id: true },
-    });
-    if (!user) return { notificationId: null };
-
-    const created = await context.db.notification.create({
-      data: {
-        userId: user.id,
-        type: input.type,
-        channel: 'IN_APP',
-        title: input.title,
-        body: input.body,
-        entityType: input.entityType ?? null,
-        entityId: input.entityId ?? null,
-        actionUrl: input.actionUrl ?? null,
-      },
-      select: { id: true },
+    // Phase 9: routed through the notification service rather than writing the
+    // row directly. An agent's notification is now subject to exactly the same
+    // preferences as a notification the platform raises itself — an agent
+    // cannot reach a channel the recipient has switched off, and cannot reach
+    // them at all where routing says it should not. A missing or closed account
+    // yields no notification, as before.
+    const created = await notify(context.db, {
+      userId: input.userId,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      entityType: input.entityType ?? null,
+      entityId: input.entityId ?? null,
+      actionUrl: input.actionUrl ?? null,
     });
 
-    return { notificationId: created.id };
+    return { notificationId: created[0] ?? null };
   },
 });

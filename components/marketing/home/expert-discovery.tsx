@@ -86,7 +86,7 @@ export function ExpertDiscovery({ showcase }: { readonly showcase: HomeShowcase 
   const stats = showcase.source === 'live' ? showcase.stats : null;
 
   return (
-    <section id="experts" aria-labelledby="experts-title" className="bg-canvas-tint py-24 sm:py-32">
+    <section id="experts" aria-labelledby="experts-title" className="scroll-mt-20 bg-canvas-tint py-24 sm:py-32">
       <Container className="flex flex-col gap-14">
         <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
           <SectionHeading
@@ -113,7 +113,7 @@ export function ExpertDiscovery({ showcase }: { readonly showcase: HomeShowcase 
         <div id="categories" className="flex scroll-mt-28 flex-col gap-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-lg font-semibold tracking-[-0.01em] text-ink">Popular categories</h3>
-            <Badge tone="sample">Sample counts</Badge>
+            <Badge tone="sample">Sample categories</Badge>
           </div>
           <div
             role="group"
@@ -147,7 +147,7 @@ export function ExpertDiscovery({ showcase }: { readonly showcase: HomeShowcase 
                   <span className="flex flex-col gap-1">
                     <span className="text-[15px] font-semibold tracking-[-0.01em]">{item.name}</span>
                     <span className={cn('text-[13px]', active ? 'text-white/75' : 'text-ink-subtle')}>
-                      {item.experts} experts · {item.topSkills.join(' · ')}
+                      {item.topSkills.join(' · ')}
                     </span>
                   </span>
                 </button>

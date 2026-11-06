@@ -36,7 +36,7 @@ const LAYOUT = [
 
 export function Trust() {
   return (
-    <section id="trust" aria-labelledby="trust-title" className="bg-canvas-tint py-24 sm:py-32">
+    <section id="trust" aria-labelledby="trust-title" className="scroll-mt-20 bg-canvas-tint py-24 sm:py-32">
       <Container className="flex flex-col gap-14">
         <SectionHeading
           id="trust-title"

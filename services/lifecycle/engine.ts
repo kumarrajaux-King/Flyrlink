@@ -52,6 +52,7 @@ import {
   authorizeForTransition,
   denialMessage,
 } from './authorization';
+import { emitLifecycleNotifications } from './notifications';
 
 export type { Participants, TransitionDenyReason } from './authorization';
 
@@ -570,6 +571,18 @@ async function runInTransaction<S extends string, E extends string, C, T, D>(
     const facts = await spec.effects(scope, data);
     const cascades = await spec.cascades(scope, data);
 
+    // Phase 9: tell the parties, in the same transaction as the change itself.
+    // Which events notify whom is a pure table (domain/notification/lifecycle-map),
+    // so this stays one call and the four services were not touched. Only the
+    // record is written here; delivery happens after commit.
+    const notified = await emitLifecycleNotifications(tx, {
+      entityType: spec.entityType,
+      entityId: request.entityId,
+      event,
+      participants: await spec.participants(tx, entity, event),
+      actorUserId: accountableUserId(request.actor),
+    });
+
     await writeAudit(tx, {
       action: spec.auditAction,
       entityType: spec.entityType,
@@ -593,6 +606,7 @@ async function runInTransaction<S extends string, E extends string, C, T, D>(
               })),
             }
           : {}),
+        ...(notified > 0 ? { notificationsRecorded: notified } : {}),
         ...facts,
       },
       ...request.context,

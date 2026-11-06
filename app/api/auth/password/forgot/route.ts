@@ -5,7 +5,7 @@
  * are registered. The link is emailed and never returned in the response.
  */
 
-import { appUrl, sendAuthEmail } from '../../../../../lib/email/auth-email';
+import { appUrl, emailService } from '../../../../../lib/email/email-service';
 import { parseJsonBody, requestContext } from '../../../../../lib/http/auth-context';
 import { errorResponse, ok, resolveRequestId } from '../../../../../lib/http/response';
 import { requestPasswordResetSchema } from '../../../../../lib/validation/auth';
@@ -23,9 +23,8 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     if (result.resetToken) {
-      await sendAuthEmail({
+      await emailService().sendPasswordReset({
         to: input.email,
-        kind: 'PASSWORD_RESET',
         actionUrl: appUrl(`/reset-password?token=${result.resetToken}`),
       });
     }

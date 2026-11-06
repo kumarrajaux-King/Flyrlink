@@ -129,7 +129,7 @@ export function ProjectDiscovery() {
   const analyzing = phase.kind === 'analyzing';
 
   return (
-    <section id="describe" aria-labelledby="describe-title" className="relative isolate overflow-hidden bg-silk py-20 text-white sm:py-28">
+    <section id="describe" aria-labelledby="describe-title" className="scroll-mt-20 relative isolate overflow-hidden bg-silk py-20 text-white sm:py-28">
       <div
         aria-hidden="true"
         className="absolute inset-0 -z-10 opacity-40 [background-image:radial-gradient(rgb(255_255_255/0.2)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom,black,transparent_75%)]"

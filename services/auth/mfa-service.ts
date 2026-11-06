@@ -14,15 +14,26 @@
  * BACKUP CODES
  *   Single-use, stored as SHA-256 digests, and marked used rather than deleted so
  *   redemption stays auditable.
+ *
+ * BRUTE FORCE
+ *   A six-digit code with a one-step window is three valid values in a million.
+ *   Unlimited guesses turn that into a few hours of traffic, which would make
+ *   the second factor decorative. Failures therefore count against the *same*
+ *   lockout the password path uses (`failedLoginCount` / `lockedUntil` on the
+ *   user row) — a failed second factor is a failed authentication attempt, and
+ *   there is no reason for it to have a budget of its own. Counting on the user
+ *   row keeps it durable and shared across instances; an in-process counter
+ *   would be neither.
  */
 
 import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit';
+import { LOCKOUT_DURATION_MS, MAX_FAILED_LOGIN_ATTEMPTS } from './login-service';
 import { verifyPassword } from '../../lib/auth/password';
 import { generateBackupCodes, hashToken, normalizeBackupCode } from '../../lib/auth/tokens';
 import { buildTotpUri, generateTotpSecret, verifyTotpCode } from '../../lib/auth/totp';
 import { MFA_REQUIRED_ROLES, type RoleName } from '../../lib/authz/roles';
 import { type Db, prisma } from '../../lib/db/client';
-import { markSessionMfaSatisfied, revokeAllSessions } from './session-service';
+import { revokeAllSessions, rotateSession } from './session-service';
 
 export interface MfaEnrollmentStart {
   readonly secret: string;
@@ -132,8 +143,20 @@ export async function confirmMfaEnrollment(
 }
 
 export type MfaChallengeOutcome =
-  | { readonly result: 'SATISFIED'; readonly usedBackupCode: boolean }
+  | {
+      readonly result: 'SATISFIED';
+      readonly usedBackupCode: boolean;
+      /**
+       * A new raw session token. Clearing MFA raises what the session can do,
+       * so the token that identifies it is reissued — see `rotateSession`.
+       * The caller must put this in the cookie or the person is signed out.
+       */
+      readonly rawToken: string;
+      readonly expiresAt: Date;
+    }
   | { readonly result: 'INVALID' }
+  /** Too many failed attempts; the same lockout the password path uses. */
+  | { readonly result: 'LOCKED'; readonly lockedUntil: Date }
   | { readonly result: 'MFA_NOT_ENABLED' };
 
 /**
@@ -152,9 +175,58 @@ export async function verifyMfaChallenge(
 ): Promise<MfaChallengeOutcome> {
   const user = await db.user.findUnique({
     where: { id: params.userId },
-    select: { id: true, mfaEnabled: true, mfaSecret: true, mfaLastUsedTimeStep: true },
+    select: {
+      id: true,
+      mfaEnabled: true,
+      mfaSecret: true,
+      mfaLastUsedTimeStep: true,
+      failedLoginCount: true,
+      lockedUntil: true,
+    },
   });
   if (!user?.mfaEnabled || !user.mfaSecret) return { result: 'MFA_NOT_ENABLED' };
+
+  const now = new Date();
+  if (user.lockedUntil && user.lockedUntil.getTime() > now.getTime()) {
+    await writeAudit(db, {
+      action: AUDIT_ACTIONS.MFA_CHALLENGE_FAILED,
+      entityType: 'User',
+      entityId: user.id,
+      actorType: 'SYSTEM',
+      severity: 'WARNING',
+      afterState: { reason: 'account_locked', lockedUntil: user.lockedUntil.toISOString() },
+      ...params.context,
+    });
+    return { result: 'LOCKED', lockedUntil: user.lockedUntil };
+  }
+
+  /** Count this failure, and lock the account once the budget is spent. */
+  const countFailure = async (method: 'totp' | 'backup_code'): Promise<MfaChallengeOutcome> => {
+    const failedCount = user.failedLoginCount + 1;
+    const shouldLock = failedCount >= MAX_FAILED_LOGIN_ATTEMPTS;
+
+    await db.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginCount: failedCount,
+        lockedUntil: shouldLock ? new Date(now.getTime() + LOCKOUT_DURATION_MS) : null,
+      },
+    });
+
+    await writeAudit(db, {
+      action: AUDIT_ACTIONS.MFA_CHALLENGE_FAILED,
+      entityType: 'User',
+      entityId: user.id,
+      actorType: 'SYSTEM',
+      severity: shouldLock ? 'WARNING' : 'NOTICE',
+      afterState: { method, failedLoginCount: failedCount, locked: shouldLock },
+      ...params.context,
+    });
+
+    return shouldLock
+      ? { result: 'LOCKED', lockedUntil: new Date(now.getTime() + LOCKOUT_DURATION_MS) }
+      : { result: 'INVALID' };
+  };
 
   if (params.backupCode) {
     const codeHash = hashToken(normalizeBackupCode(params.backupCode));
@@ -165,20 +237,17 @@ export async function verifyMfaChallenge(
       data: { usedAt: new Date() },
     });
 
-    if (redeemed.count === 0) {
-      await writeAudit(db, {
-        action: AUDIT_ACTIONS.MFA_CHALLENGE_FAILED,
-        entityType: 'User',
-        entityId: user.id,
-        actorType: 'SYSTEM',
-        severity: 'WARNING',
-        afterState: { method: 'backup_code' },
-        ...params.context,
-      });
-      return { result: 'INVALID' };
-    }
+    if (redeemed.count === 0) return countFailure('backup_code');
 
-    await markSessionMfaSatisfied(db, params.sessionId);
+    const rotated = await rotateSession(db, {
+      sessionId: params.sessionId,
+      mfaSatisfied: true,
+      ...(params.context ? { context: params.context } : {}),
+    });
+    await db.user.update({
+      where: { id: user.id },
+      data: { failedLoginCount: 0, lockedUntil: null },
+    });
     await writeAudit(db, {
       action: AUDIT_ACTIONS.MFA_BACKUP_CODE_USED,
       entityType: 'User',
@@ -187,10 +256,15 @@ export async function verifyMfaChallenge(
       severity: 'WARNING',
       ...params.context,
     });
-    return { result: 'SATISFIED', usedBackupCode: true };
+    return {
+      result: 'SATISFIED',
+      usedBackupCode: true,
+      rawToken: rotated.rawToken,
+      expiresAt: rotated.expiresAt,
+    };
   }
 
-  if (!params.code) return { result: 'INVALID' };
+  if (!params.code) return countFailure('totp');
 
   const verification = await verifyTotpCode({
     secret: user.mfaSecret,
@@ -198,25 +272,24 @@ export async function verifyMfaChallenge(
     lastUsedTimeStep: user.mfaLastUsedTimeStep,
   });
 
-  if (!verification.valid) {
-    await writeAudit(db, {
-      action: AUDIT_ACTIONS.MFA_CHALLENGE_FAILED,
-      entityType: 'User',
-      entityId: user.id,
-      actorType: 'SYSTEM',
-      severity: 'WARNING',
-      afterState: { method: 'totp' },
-      ...params.context,
-    });
-    return { result: 'INVALID' };
-  }
+  if (!verification.valid) return countFailure('totp');
 
-  await db.$transaction(async (tx) => {
+  const rotated = await db.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: user.id },
-      data: { mfaLastUsedTimeStep: verification.timeStep },
+      data: {
+        mfaLastUsedTimeStep: verification.timeStep,
+        // A cleared challenge is a successful authentication, so it clears the
+        // counter the same way a correct password does.
+        failedLoginCount: 0,
+        lockedUntil: null,
+      },
     });
-    await markSessionMfaSatisfied(tx, params.sessionId);
+    const next = await rotateSession(tx, {
+      sessionId: params.sessionId,
+      mfaSatisfied: true,
+      ...(params.context ? { context: params.context } : {}),
+    });
     await writeAudit(tx, {
       action: AUDIT_ACTIONS.MFA_CHALLENGE_SUCCEEDED,
       entityType: 'User',
@@ -224,9 +297,15 @@ export async function verifyMfaChallenge(
       actorUserId: user.id,
       ...params.context,
     });
+    return next;
   });
 
-  return { result: 'SATISFIED', usedBackupCode: false };
+  return {
+    result: 'SATISFIED',
+    usedBackupCode: false,
+    rawToken: rotated.rawToken,
+    expiresAt: rotated.expiresAt,
+  };
 }
 
 export type DisableMfaOutcome =

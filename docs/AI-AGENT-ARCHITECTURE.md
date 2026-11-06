@@ -166,11 +166,46 @@ No job table was added: `AiRun.status = QUEUED` already is a durable, indexed, a
 | Context isolation | Agents receive only what their tools return, each scoped to the acting user |
 | Memory boundaries | **No cross-run agent memory.** State lives in domain tables; each run starts clean |
 | PII redaction | Applied **before egress and before persistence** — emails, phones, card-shaped digits, national IDs, provider keys, and ~30 sensitive key names |
+| Identifier pseudonymisation | A UUID leaving for a provider is swapped for a **surrogate** UUID, random per run, translated back on the way into a tool — so no real primary key is ever sent, and the agent can still name the row (see §9.1) |
 | Prompt injection | Untrusted content travels in the input payload, never the system prompt; tool authorization is against the acting user, never the content |
 | Structured output | Zod-validated before anything is written; invalid output is a failed run with **no partial write** |
 | Idempotency | `AiAction.idempotencyKey` unique per run, from the provider's tool-call id |
 | Secrets | Provider keys from environment only; never logged, never in a payload |
 | Observability access | `ai:read:any` — privileged and MFA-gated, so run payloads are unreadable from an un-challenged session |
+
+### 9.1 Identifiers: pseudonymised at egress, whole in the database
+
+Two requirements pull against each other. A vendor must not be handed durable
+handles on our records; the agent must still be able to name a row it was told
+about when it calls a tool. Masking an id to `[ID]` satisfies the first and
+destroys the second.
+
+So each UUID leaving for a provider is replaced with a **surrogate**:
+structurally valid, stable for the life of one run, meaningless outside it,
+minted as UUID **version 8** (the variant RFC 9562 reserves for custom use) so it
+can never collide with one of our version 7 keys. The orchestrator holds one
+mapping per run and translates surrogates back before a tool executes. The
+mapping is random per run rather than a keyed hash, because a hash would be
+stable across every run forever — which is precisely the linkable handle we are
+avoiding.
+
+In our own database identifiers stay real: they are our foreign keys, the admin
+console needs to show which row an action targets, and an approval held now may
+be executed hours later with nothing but the stored payload to work from.
+`redactForStorage` therefore takes no context, and that is what makes the
+difference visible at the call site.
+
+> **The bug this replaced, and what it cost.** The value rules ran as a sequence
+> of whole-string passes, so the phone-number rule could eat the digit-and-dash
+> tail of a UUID: `550e8400-e29b-41d4-a716-446655440000` reached the model as
+> `550e8400-e29b-41d4-a716-[PHONE]`. Measured against random UUIDv7 keys, **about
+> a quarter** were corrupted this way. A tool call built from one could only
+> fail, and because it depended on the shape of the id it looked like an
+> intermittent provider problem — it was misdiagnosed once as a database-bridge
+> flake. The rules now run as a single left-to-right scan that takes the leftmost
+> match across all of them and never rescans a replacement, so a UUID is consumed
+> whole before any numeric rule can see inside it. A 5,000-sample regression test
+> pins it.
 
 ## 10. Providers
 

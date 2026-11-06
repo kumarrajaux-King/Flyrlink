@@ -9,6 +9,11 @@
  *     gets a session that is authenticated but not yet MFA-cleared; `authorize`
  *     denies privileged work until the challenge is passed. That is what makes
  *     MFA a property of *this* login rather than of the account.
+ *   - For a role in `MFA_REQUIRED_ROLES` the flag on the row is not taken at
+ *     face value. `resolveSession` recomputes it against the account's actual
+ *     enrollment and the roles held *now*, so an administrator who never set up
+ *     a second factor is never treated as having cleared one, and a role granted
+ *     mid-session cannot ride an already-cleared flag.
  *   - Any privilege change (password, MFA, roles) revokes every other session,
  *     so a stolen session cannot outlive the credential it was minted from.
  */
@@ -16,7 +21,7 @@
 import { AUDIT_ACTIONS, type RequestContext, writeAudit } from '../../lib/audit/audit';
 import { SESSION_TTL_MS, expiresAt, hashToken, issueToken } from '../../lib/auth/tokens';
 import { type Actor } from '../../lib/authz/authorize';
-import { type RoleName } from '../../lib/authz/roles';
+import { type RoleName, mfaSatisfiedForSession, requiresMfa } from '../../lib/authz/roles';
 import { type Db, prisma } from '../../lib/db/client';
 
 export interface CreatedSession {
@@ -74,8 +79,13 @@ export interface ResolvedSession {
   readonly sessionId: string;
   readonly actor: Actor;
   readonly expiresAt: Date;
-  /** True when the user has MFA enabled but this session has not cleared it. */
+  /** True when the user has MFA enrolled but this session has not cleared it. */
   readonly mfaChallengePending: boolean;
+  /**
+   * True when the account holds an MFA-required role and has no second factor
+   * at all. Nothing privileged is permitted until one is enrolled and cleared.
+   */
+  readonly mfaEnrollmentRequired: boolean;
 }
 
 /**
@@ -121,15 +131,21 @@ export async function resolveSession(
   if (session.user.deletedAt) return null;
 
   const roles = session.user.roles.map((link) => link.role.name as RoleName);
+  const mfaSatisfied = mfaSatisfiedForSession({
+    roles,
+    mfaEnrolled: session.user.mfaEnabled,
+    sessionMfaSatisfied: session.mfaSatisfied,
+  });
 
   return {
     sessionId: session.id,
     expiresAt: session.expiresAt,
     mfaChallengePending: session.user.mfaEnabled && !session.mfaSatisfied,
+    mfaEnrollmentRequired: requiresMfa(roles) && !session.user.mfaEnabled,
     actor: {
       userId: session.user.id,
       roles,
-      mfaSatisfied: session.mfaSatisfied,
+      mfaSatisfied,
       // Only an ACTIVE account may act. A registered-but-unverified or a
       // suspended user authenticates successfully and is then refused by
       // `authorize` with ACCOUNT_INACTIVE, which is a clearer signal than a
@@ -139,12 +155,53 @@ export async function resolveSession(
   };
 }
 
-/** Mark a session as having cleared the MFA challenge. */
-export async function markSessionMfaSatisfied(db: Db, sessionId: string): Promise<void> {
-  await db.session.update({
-    where: { id: sessionId },
-    data: { mfaSatisfied: true },
+/**
+ * Reissue a session's token as its authority changes.
+ *
+ * WHY THE TOKEN CHANGES, NOT JUST THE FLAG
+ *   Clearing MFA raises what a session may do. If the identifier stays the
+ *   same across that step, any copy of it taken beforehand — a token fixed on
+ *   the victim, one read from a shared machine, one captured before the
+ *   upgrade — silently inherits the new authority. Reissuing means the
+ *   pre-elevation token buys exactly what it bought before: nothing
+ *   privileged, because it no longer resolves at all.
+ *
+ *   This is the standard rule ("renew the session identifier on privilege
+ *   change") applied to the one privilege change we have. The row keeps its
+ *   id, so audit history and anything referencing the session stay intact;
+ *   only the secret the browser holds is replaced.
+ *
+ *   The caller MUST write the returned token to the cookie. Not doing so
+ *   signs the person out, loudly rather than silently, which is the right way
+ *   round for this mistake.
+ */
+export async function rotateSession(
+  db: Db,
+  params: { sessionId: string; mfaSatisfied: boolean; context?: RequestContext },
+): Promise<{ rawToken: string; expiresAt: Date }> {
+  const { raw, hash } = issueToken();
+  // The clock restarts too: a session that just proved a second factor is as
+  // fresh as one that just signed in.
+  const expiry = expiresAt(SESSION_TTL_MS);
+
+  const updated = await db.session.updateMany({
+    where: { id: params.sessionId, revokedAt: null },
+    data: { sessionToken: hash, expiresAt: expiry, mfaSatisfied: params.mfaSatisfied },
   });
+  if (updated.count === 0) {
+    throw new Error(`Cannot rotate session ${params.sessionId}: it is revoked or gone.`);
+  }
+
+  await writeAudit(db, {
+    action: AUDIT_ACTIONS.SESSION_ROTATED,
+    entityType: 'Session',
+    entityId: params.sessionId,
+    severity: 'NOTICE',
+    afterState: { reason: 'mfa_satisfied', mfaSatisfied: params.mfaSatisfied },
+    ...params.context,
+  });
+
+  return { rawToken: raw, expiresAt: expiry };
 }
 
 /** Revoke a single session (logout). Idempotent. */
